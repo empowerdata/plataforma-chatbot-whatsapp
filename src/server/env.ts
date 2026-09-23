@@ -18,8 +18,14 @@ const schema = z.object({
   DATABASE_URL: z.string().optional(),
   /** Chave-mestra usada para criptografar segredos dos alunos (AES-256-GCM). */
   APP_SECRET: z.string().min(16).optional(),
-  /** URL pública da aplicação (usada para montar webhooks e links). */
-  APP_URL: z.string().url().default("http://localhost:3000"),
+  /**
+   * URL pública da aplicação (usada para montar webhooks e links). Se vazia,
+   * cai para RENDER_EXTERNAL_URL (Render já injeta essa variável sozinho em
+   * todo web service, então numa instalação via render.yaml o aluno nunca
+   * precisa preencher isso) e por fim para localhost em dev.
+   */
+  APP_URL: z.string().url().optional(),
+  RENDER_EXTERNAL_URL: z.string().url().optional(),
   /** Pasta de dados locais (PGlite, segredo dev). */
   DATA_DIR: z.string().default(".data"),
   /** Habilita a Evolution simulada e a página /dev/simulador. */
@@ -30,12 +36,21 @@ const schema = z.object({
   INTERNAL_TOKEN: z.string().optional(),
   /** Chave OpenAI de fallback só para o ambiente de dev/playground. */
   DEV_OPENAI_API_KEY: z.string().optional(),
-  /** E-mail e senha do primeiro super admin (criado na primeira migração). */
+  /** E-mail, senha e nome do negócio do primeiro acesso (instalação própria do aluno). */
   BOOTSTRAP_ADMIN_EMAIL: z.string().email().default("admin@local.test"),
   BOOTSTRAP_ADMIN_PASSWORD: z.string().min(6).default("admin123"),
+  BOOTSTRAP_ACCOUNT_NAME: z.string().min(1).optional(),
+  /**
+   * Endereço interno do servidor Evolution que já vem junto na instalação
+   * (Docker Compose ou render.yaml). Quando presentes, o bootstrap cadastra
+   * esse servidor sozinho — o aluno nunca precisa abrir Admin → Servidores.
+   */
+  EVOLUTION_BUNDLED_HOST: z.string().optional(),
+  EVOLUTION_BUNDLED_PORT: z.string().optional(),
+  EVOLUTION_BUNDLED_API_KEY: z.string().optional(),
 });
 
-type Env = z.infer<typeof schema> & { APP_SECRET: string; isProd: boolean; devSimulator: boolean };
+type Env = z.infer<typeof schema> & { APP_SECRET: string; APP_URL: string; isProd: boolean; devSimulator: boolean };
 
 function loadSecret(dataDir: string): string {
   const file = path.join(dataDir, "app-secret");
@@ -63,6 +78,7 @@ function build(): Env {
     ...e,
     DATA_DIR: dataDir,
     APP_SECRET: e.APP_SECRET ?? loadSecret(dataDir),
+    APP_URL: e.APP_URL ?? e.RENDER_EXTERNAL_URL ?? "http://localhost:3000",
     isProd,
     devSimulator: e.DEV_SIMULATOR === "1" && !isProd,
   };

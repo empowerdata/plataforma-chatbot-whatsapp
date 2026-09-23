@@ -29,7 +29,10 @@ export type AccountContext = {
 
 /**
  * Contexto da conta atual: membro comum usa a própria conta; super admin
- * precisa estar "atuando como" uma conta (cookie), senão vai para /admin.
+ * usa a conta que estiver "atuando como" (cookie) e, na falta dela, a
+ * própria conta, se tiver uma (instalação de conta única, onde quem instalou
+ * é ao mesmo tempo admin e dono da única conta). Sem nenhuma das duas, vai
+ * para /admin/contas escolher uma.
  */
 export const requireAccount = cache(async (): Promise<AccountContext> => {
   const user = await requireUser();
@@ -37,8 +40,11 @@ export const requireAccount = cache(async (): Promise<AccountContext> => {
   let accountId = user.accountId;
   let actingAs = false;
   if (user.role === "super_admin") {
-    accountId = await getActAsAccountId();
-    actingAs = !!accountId;
+    const actAs = await getActAsAccountId();
+    if (actAs) {
+      accountId = actAs;
+      actingAs = true;
+    }
     if (!accountId) redirect("/admin/contas");
   }
   if (!accountId) redirect("/login");
@@ -56,8 +62,11 @@ export async function getAccountOrThrow(): Promise<AccountContext> {
   let accountId = user.accountId;
   let actingAs = false;
   if (user.role === "super_admin") {
-    accountId = await getActAsAccountId();
-    actingAs = !!accountId;
+    const actAs = await getActAsAccountId();
+    if (actAs) {
+      accountId = actAs;
+      actingAs = true;
+    }
   }
   if (!accountId) throw new AuthError("Nenhuma conta selecionada.");
   const [account] = await db.select().from(schema.accounts).where(eq(schema.accounts.id, accountId)).limit(1);

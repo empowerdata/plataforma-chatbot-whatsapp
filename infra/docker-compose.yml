@@ -82,6 +82,11 @@ services:
       APP_URL: https://${APP_DOMAIN}
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/chatbot
       DEV_SIMULATOR: "0"
+      # Evolution já vem junto nesta mesma instalação: cadastrada sozinha no
+      # boot, sem precisar abrir Admin → Servidores.
+      EVOLUTION_BUNDLED_HOST: evolution
+      EVOLUTION_BUNDLED_PORT: "8080"
+      EVOLUTION_BUNDLED_API_KEY: ${EVOLUTION_API_KEY}
     depends_on:
       postgres:
         condition: service_healthy

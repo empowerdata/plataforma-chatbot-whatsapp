@@ -22,9 +22,12 @@ export default async function PainelLayout({ children }: { children: React.React
   let actingAs = false;
   if (user.role === "super_admin") {
     const actAs = await getActAsAccountId();
-    if (actAs) {
-      account = (await db.select().from(schema.accounts).where(eq(schema.accounts.id, actAs)).limit(1))[0] ?? null;
-      actingAs = !!account;
+    // Sem "entrar como" explícito: cai na própria conta, se tiver uma (caso
+    // da instalação de conta única, onde quem instalou já é dono dela).
+    const targetId = actAs ?? user.accountId;
+    if (targetId) {
+      account = (await db.select().from(schema.accounts).where(eq(schema.accounts.id, targetId)).limit(1))[0] ?? null;
+      actingAs = !!actAs && !!account;
     }
   } else if (user.accountId) {
     account = (await db.select().from(schema.accounts).where(eq(schema.accounts.id, user.accountId)).limit(1))[0] ?? null;

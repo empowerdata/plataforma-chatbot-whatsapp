@@ -1,0 +1,184 @@
+# =============================================================================
+# Instalação de um clique no Render (render.com).
+#
+# Ao clicar em "Deploy to Render" com este arquivo, o Render cria sozinho:
+#   - painel     : esta aplicação (Next.js), pública
+#   - evolution  : servidor que conecta o WhatsApp (Evolution API), privado —
+#                  só o painel fala com ele, ninguém de fora acessa direto
+#   - cache      : Redis gerenciado, usado pelo Evolution
+#   - painel-db  : Postgres gerenciado para as contas/números/bots do painel
+#   - evolution-db: Postgres gerenciado só para a sessão do WhatsApp
+#
+# O único formulário que a pessoa vê ao instalar é o e-mail, a senha e o nome
+# do negócio (variáveis marcadas "sync: false" abaixo) — o resto (senhas de
+# banco, chaves internas, como os serviços se encontram uns aos outros) o
+# Render preenche sozinho. Ver docs/deploy-render.md para o passo a passo.
+#
+# ATENÇÃO ao publicar de verdade: valide este arquivo com uma instalação real
+# antes de divulgar (ver nota no fim de docs/deploy-render.md) — alguns
+# detalhes de rede interna do Render foram escritos com base na documentação
+# oficial, mas ainda não foram testados num deploy ao vivo.
+# =============================================================================
+
+databases:
+  # Sem "plan": usa o menor tamanho pago do Render (mais barato). Dá para
+  # aumentar depois pelo painel do Render sem perder dados.
+  - name: painel-db
+
+  - name: evolution-db
+    databaseName: evolution
+
+services:
+  # ---------------------------------------------------------------- painel
+  - type: web
+    name: painel
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: virginia
+    healthCheckPath: /login
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DEV_SIMULATOR
+        value: "0"
+      - key: SEED_DEMO
+        value: "0"
+      - key: APP_SECRET
+        generateValue: true
+      - key: INTERNAL_TOKEN
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: painel-db
+          property: connectionString
+      # Formulário mostrado na instalação — o negócio da pessoa, e o login
+      # que ela vai usar para entrar no painel pela primeira vez.
+      - key: BOOTSTRAP_ACCOUNT_NAME
+        sync: false
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      # Endereço interno do Evolution que já vem junto — cadastrado sozinho,
+      # sem precisar abrir Admin → Servidores.
+      - key: EVOLUTION_BUNDLED_HOST
+        fromService:
+          name: evolution
+          type: pserv
+          property: host
+      - key: EVOLUTION_BUNDLED_PORT
+        value: "8080"
+      - key: EVOLUTION_BUNDLED_API_KEY
+        fromService:
+          name: evolution
+          type: pserv
+          envVarKey: AUTHENTICATION_API_KEY
+
+  # -------------------------------------------------------------- evolution
+  # Serviço privado: não tem endereço público, só o painel enxerga ele.
+  - type: pserv
+    name: evolution
+    runtime: image
+    image:
+      url: evoapicloud/evolution-api:latest
+    plan: starter
+    region: virginia
+    disk:
+      name: evolution-instances
+      mountPath: /evolution/instances
+      sizeGB: 1
+    envVars:
+      - key: SERVER_TYPE
+        value: http
+      - key: SERVER_PORT
+        value: "8080"
+      - key: PORT
+        value: "8080"
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: CORS_METHODS
+        value: GET,POST,PUT,DELETE
+      - key: CORS_CREDENTIALS
+        value: "true"
+      - key: LOG_LEVEL
+        value: ERROR,WARN,INFO
+      - key: LOG_COLOR
+        value: "false"
+      - key: DEL_INSTANCE
+        value: "false"
+      - key: LANGUAGE
+        value: pt-BR
+      - key: DATABASE_ENABLED
+        value: "true"
+      - key: DATABASE_PROVIDER
+        value: postgresql
+      - key: DATABASE_CONNECTION_CLIENT_NAME
+        value: evolution
+      - key: DATABASE_CONNECTION_URI
+        fromDatabase:
+          name: evolution-db
+          property: connectionString
+      # Guarda só a sessão do WhatsApp; conversas ficam no Supabase do aluno.
+      - key: DATABASE_SAVE_DATA_INSTANCE
+        value: "true"
+      - key: DATABASE_SAVE_DATA_NEW_MESSAGE
+        value: "false"
+      - key: DATABASE_SAVE_MESSAGE_UPDATE
+        value: "false"
+      - key: DATABASE_SAVE_DATA_CONTACTS
+        value: "false"
+      - key: DATABASE_SAVE_DATA_CHATS
+        value: "false"
+      - key: DATABASE_SAVE_DATA_LABELS
+        value: "false"
+      - key: DATABASE_SAVE_DATA_HISTORIC
+        value: "false"
+      - key: DATABASE_SAVE_IS_ON_WHATSAPP
+        value: "false"
+      - key: CACHE_REDIS_ENABLED
+        value: "true"
+      - key: CACHE_REDIS_PREFIX_KEY
+        value: evolution
+      - key: CACHE_REDIS_SAVE_INSTANCES
+        value: "false"
+      - key: CACHE_LOCAL_ENABLED
+        value: "false"
+      - key: CACHE_REDIS_URI
+        fromService:
+          name: cache
+          type: keyvalue
+          property: connectionString
+      - key: WEBHOOK_GLOBAL_ENABLED
+        value: "false"
+      - key: WEBHOOK_EVENTS_QRCODE_UPDATED
+        value: "true"
+      - key: WEBHOOK_EVENTS_MESSAGES_UPSERT
+        value: "true"
+      - key: WEBHOOK_EVENTS_CONNECTION_UPDATE
+        value: "true"
+      - key: WEBHOOK_EVENTS_LOGOUT_INSTANCE
+        value: "true"
+      - key: WEBHOOK_EVENTS_REMOVE_INSTANCE
+        value: "true"
+      - key: CONFIG_SESSION_PHONE_CLIENT
+        value: Atendimento
+      - key: CONFIG_SESSION_PHONE_NAME
+        value: Chrome
+      - key: QRCODE_LIMIT
+        value: "30"
+      - key: QRCODE_COLOR
+        value: "#175197"
+      - key: AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES
+        value: "true"
+      - key: AUTHENTICATION_API_KEY
+        generateValue: true
+
+  # ------------------------------------------------------------------ cache
+  - type: keyvalue
+    name: cache
+    plan: starter
+    region: virginia
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
