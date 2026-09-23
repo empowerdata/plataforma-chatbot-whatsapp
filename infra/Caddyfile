@@ -1,0 +1,10 @@
+# HTTPS automático (Let's Encrypt). Os domínios vêm do .env do compose.
+{$APP_DOMAIN} {
+	encode gzip
+	reverse_proxy app:3000
+}
+
+{$EVO_DOMAIN} {
+	encode gzip
+	reverse_proxy evolution:8080
+}

@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: "standalone",
+  // Migrations precisam ir junto no build standalone (Docker).
+  outputFileTracingIncludes: {
+    "/*": ["./drizzle/**/*"],
+  },
+  serverExternalPackages: ["@electric-sql/pglite", "@electric-sql/pglite-pgvector", "postgres", "unpdf", "mammoth"],
 };
 
 export default nextConfig;

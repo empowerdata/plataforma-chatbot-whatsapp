@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Plataforma de chatbots WhatsApp (white label)
 
-## Getting Started
+Painel multi-conta onde alunos gerenciam números de WhatsApp com bots de IA para pequenos negócios. A Evolution API é hospedada pela plataforma; cada aluno usa o **próprio Supabase** (conversas) e a **própria chave OpenAI** (inteligência).
 
-First, run the development server:
+## Rodar em desenvolvimento (sem instalar nada além do Node)
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abra http://localhost:3000. Não precisa de Docker, Postgres nem Supabase: em dev o banco é embutido (PGlite em `./.data`) e a Evolution é simulada.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Acesso | E-mail | Senha |
+|---|---|---|
+| Administrador da plataforma | `admin@local.test` | `admin123` |
+| Aluno de demonstração | `demo@local.test` | `demo123` |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+A conta demo já vem com dois clientes, dois bots, um número "conectado" e algumas conversas. Use **Simulador** no menu para conversar com o bot como se fosse um cliente no WhatsApp.
 
-## Learn More
+Para respostas de IA de verdade em dev, coloque `DEV_OPENAI_API_KEY=sk-...` num arquivo `.env.local` (ou configure a chave em Integrações).
 
-To learn more about Next.js, take a look at the following resources:
+## Comandos
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run dev        # desenvolvimento
+npm test           # testes (unitários, banco do aluno, ponta a ponta)
+npx tsc --noEmit   # tipos
+npm run build      # build de produção
+npx drizzle-kit generate   # gerar migration após mudar src/server/db/schema.ts
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Documentação
 
-## Deploy on Vercel
+- `docs/arquitetura.md` — peças, fluxo da mensagem, decisões.
+- `docs/convencoes.md` — como escrever telas e código aqui.
+- `docs/operacao.md` — subir e manter o servidor (VPS, Docker, backups).
+- `docs/onboarding-aluno.md` — o que o aluno faz, passo a passo.
+- `docs/fase0-checklist.md` — o que validar quando o VPS e o chip chegarem.
+- `docs/roadmap.md` — fases.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Produção
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`infra/docker-compose.yml` sobe tudo num VPS: Evolution API, Postgres, Redis, painel e Caddy (HTTPS automático). Passo a passo em `docs/operacao.md`.

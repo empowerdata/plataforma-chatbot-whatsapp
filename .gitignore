@@ -39,3 +39,18 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# banco local de desenvolvimento (PGlite) e segredo gerado automaticamente
+/.data/
+
+# variáveis de ambiente locais
+.env
+.env.local
+.env*.local
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# vercel
+.vercel
