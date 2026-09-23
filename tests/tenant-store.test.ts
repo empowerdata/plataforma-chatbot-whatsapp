@@ -107,6 +107,38 @@ describe("TenantStore no PGlite (mesmo SQL do Supabase)", () => {
     await store.deleteBotChunks(BOT);
   });
 
+  it("apaga conversas antigas (e cascateia mensagens), preserva as recentes e as estatísticas", async () => {
+    const OLD_NUMBER = "44444444-4444-4444-8444-444444444444";
+
+    const oldContact = await store.upsertContact({ numberId: OLD_NUMBER, jid: "5511900000001@s.whatsapp.net", pushName: "Antigo" });
+    const { conversation: oldConv } = await store.getOrCreateConversation({ numberId: OLD_NUMBER, contactId: oldContact.id, timeoutHours: 999999 });
+    await store.insertMessage({ numberId: OLD_NUMBER, conversationId: oldConv.id, contactId: oldContact.id, direction: "in", sender: "contact", text: "mensagem de 40 dias atrás" });
+    // Backdata a conversa para fora da janela de retenção (o teste real usa now() na inserção).
+    await db.query(`update chatbot.conversations set last_message_at = now() - interval '40 days' where id = $1`, [oldConv.id]);
+
+    const freshContact = await store.upsertContact({ numberId: OLD_NUMBER, jid: "5511900000002@s.whatsapp.net", pushName: "Recente" });
+    const { conversation: freshConv } = await store.getOrCreateConversation({ numberId: OLD_NUMBER, contactId: freshContact.id, timeoutHours: 999999 });
+    await store.insertMessage({ numberId: OLD_NUMBER, conversationId: freshConv.id, contactId: freshContact.id, direction: "in", sender: "contact", text: "mensagem de hoje" });
+
+    await store.bumpDailyStat(OLD_NUMBER, new Date(), { messages_in: 2, conversations: 2 });
+
+    const { conversations: removedConvs, contacts: removedContacts } = await store.purgeOldConversations(30);
+    expect(removedConvs).toBe(1);
+    expect(removedContacts).toBe(1);
+
+    expect(await store.getConversation(oldConv.id)).toBeNull();
+    expect(await store.listMessages(oldConv.id)).toHaveLength(0); // cascata
+    expect(await store.getConversation(freshConv.id)).not.toBeNull();
+    expect(await store.listMessages(freshConv.id)).toHaveLength(1);
+
+    // Estatísticas agregadas não são afetadas pela limpeza de conversas/mensagens.
+    const stats = await store.dailyStats([OLD_NUMBER], new Date(Date.now() - 86400_000), new Date());
+    expect(stats.reduce((a, s) => a + s.messages_in, 0)).toBe(2);
+
+    // Rodar de novo não quebra nem apaga nada a mais.
+    expect(await store.purgeOldConversations(30)).toEqual({ conversations: 0, contacts: 0 });
+  });
+
   it("estatísticas diárias", async () => {
     const day = new Date("2026-09-21T12:00:00Z");
     await store.bumpDailyStat(NUMBER, day, { messages_in: 1, conversations: 1 });

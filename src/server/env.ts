@@ -48,6 +48,12 @@ const schema = z.object({
   EVOLUTION_BUNDLED_HOST: z.string().optional(),
   EVOLUTION_BUNDLED_PORT: z.string().optional(),
   EVOLUTION_BUNDLED_API_KEY: z.string().optional(),
+  /**
+   * Por quantos dias sem atividade uma conversa fica guardada no Supabase do
+   * aluno antes de ser apagada automaticamente (mensagens incluídas). As
+   * estatísticas agregadas (gráfico da Visão Geral) não são afetadas.
+   */
+  CONVERSATION_RETENTION_DAYS: z.coerce.number().int().min(1).default(30),
 });
 
 type Env = z.infer<typeof schema> & { APP_SECRET: string; APP_URL: string; isProd: boolean; devSimulator: boolean };

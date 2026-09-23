@@ -386,4 +386,24 @@ export class TenantStore {
     await this.db.query(`delete from chatbot.contacts where number_id = $1`, [numberId]);
     await this.db.query(`delete from chatbot.daily_stats where number_id = $1`, [numberId]);
   }
+
+  /**
+   * Apaga conversas (e as mensagens, em cascata) sem nenhuma atividade há
+   * mais de `days` dias, e depois os contatos que ficaram sem conversa
+   * nenhuma. As estatísticas agregadas (chatbot.daily_stats) não são
+   * afetadas — o gráfico de atividade continua funcionando normalmente.
+   * Pensado para rodar uma vez por dia (ver src/server/monitor.ts).
+   */
+  async purgeOldConversations(days: number): Promise<{ conversations: number; contacts: number }> {
+    const conv = await this.db.query<{ id: string }>(
+      `delete from chatbot.conversations where last_message_at < now() - ($1 || ' days')::interval returning id`,
+      [days],
+    );
+    const contacts = await this.db.query<{ id: string }>(
+      `delete from chatbot.contacts c
+         where not exists (select 1 from chatbot.conversations v where v.contact_id = c.id)
+       returning c.id`,
+    );
+    return { conversations: conv.length, contacts: contacts.length };
+  }
 }

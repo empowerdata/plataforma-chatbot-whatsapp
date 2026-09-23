@@ -3,6 +3,8 @@ import { and, eq, ne } from "drizzle-orm";
 import { getDb, schema } from "./db";
 import { checkNodeHealth, getEvolutionClient } from "./evolution/nodes";
 import { logEvent } from "./services/events";
+import { getTenantStore, TenantNotConfigured } from "./tenant";
+import { env } from "./env";
 
 /**
  * Monitor: confere a saúde dos servidores Evolution e o estado de cada número,
@@ -44,7 +46,36 @@ export async function runMonitorOnce(): Promise<{ nodes: number; numbers: number
     }
   }
   const [{ n }] = await db.select({ n: schema.numbers.id }).from(schema.numbers).limit(1).then((r) => (r.length ? [{ n: 1 }] : [{ n: 0 }]));
+  await purgeOldConversationsOnceADay();
   return { nodes: nodes.length, numbers: n, changed };
+}
+
+const gp = globalThis as unknown as { __lastPurgeAt?: number };
+
+/**
+ * Apaga conversas e mensagens antigas (ver CONVERSATION_RETENTION_DAYS) no
+ * Supabase de cada conta, no máximo uma vez por dia — o monitor roda a cada
+ * minuto, mas essa limpeza não precisa disso.
+ */
+async function purgeOldConversationsOnceADay(): Promise<void> {
+  const DAY_MS = 24 * 3600_000;
+  if (gp.__lastPurgeAt && Date.now() - gp.__lastPurgeAt < DAY_MS - 3600_000) return;
+  gp.__lastPurgeAt = Date.now();
+
+  const db = await getDb();
+  const accounts = await db.select({ id: schema.accounts.id }).from(schema.accounts);
+  for (const { id: accountId } of accounts) {
+    try {
+      const store = await getTenantStore(accountId);
+      const { conversations, contacts } = await store.purgeOldConversations(env.CONVERSATION_RETENTION_DAYS);
+      if (conversations > 0) {
+        console.log(`[monitor] conta ${accountId}: ${conversations} conversa(s) e ${contacts} contato(s) com mais de ${env.CONVERSATION_RETENTION_DAYS} dias apagados`);
+      }
+    } catch (err) {
+      if (err instanceof TenantNotConfigured) continue; // sem Supabase configurado ainda
+      console.error(`[monitor] falha ao limpar conversas antigas da conta ${accountId}`, err);
+    }
+  }
 }
 
 const g = globalThis as unknown as { __monitorTimer?: NodeJS.Timeout };

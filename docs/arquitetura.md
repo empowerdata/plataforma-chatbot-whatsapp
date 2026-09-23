@@ -61,6 +61,8 @@ Runtime hoje é **em processo** (memória). Para várias réplicas, trocar `Memo
 
 A cada 60 s (iniciado por `instrumentation.ts`) confere a saúde dos servidores e o estado de cada instância, corrige o status no banco e registra eventos. Também exposto em `GET /api/internal/monitor` para cron externo.
 
+O mesmo processo, no máximo uma vez por dia, apaga conversas e mensagens sem atividade há mais de `CONVERSATION_RETENTION_DAYS` (padrão 30) no Supabase de cada conta — mensagens caem em cascata junto com a conversa. As estatísticas agregadas (`chatbot.daily_stats`) não são apagadas, então o gráfico da Visão Geral continua mostrando os últimos 30 dias mesmo sem o texto das conversas.
+
 ### Segurança
 
 - Segredos dos alunos: AES-256-GCM com chave derivada de `APP_SECRET` (`crypto.ts`). Nunca vão ao navegador.
