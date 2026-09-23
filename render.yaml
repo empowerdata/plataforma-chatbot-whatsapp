@@ -4,8 +4,8 @@
 # Ao clicar em "Deploy to Render" com este arquivo, o Render cria sozinho:
 #   - painel     : esta aplicação (Next.js), pública
 #   - evolution  : servidor que conecta o WhatsApp (Evolution API), privado —
-#                  só o painel fala com ele, ninguém de fora acessa direto
-#   - cache      : Redis gerenciado, usado pelo Evolution
+#                  só o painel fala com ele, ninguém de fora acessa direto,
+#                  com cache local (sem Redis à parte, para custar menos)
 #   - painel-db  : Postgres gerenciado para as contas/números/bots do painel
 #   - evolution-db: Postgres gerenciado só para a sessão do WhatsApp
 #
@@ -14,10 +14,16 @@
 # banco, chaves internas, como os serviços se encontram uns aos outros) o
 # Render preenche sozinho. Ver docs/deploy-render.md para o passo a passo.
 #
+# Custo: validado ao vivo no Render em 2026-09-23 com Redis incluído, deu
+# US$ 21/mês (~R$ 115). Sem o Redis (removido abaixo) deve ficar menor — a
+# confirmar no próximo teste. As duas peças que mais pesam no total são os
+# dois bancos Postgres e os dois serviços sempre ligados (painel + evolution)
+# — isso é inerente ao jeito do Render cobrar cada peça gerenciada à parte.
+# Quem quiser o menor custo possível deve usar o caminho do VPS em infra/
+# (~R$ 25 a 30/mês tudo incluído, mas precisa de terminal).
+#
 # ATENÇÃO ao publicar de verdade: valide este arquivo com uma instalação real
-# antes de divulgar (ver nota no fim de docs/deploy-render.md) — alguns
-# detalhes de rede interna do Render foram escritos com base na documentação
-# oficial, mas ainda não foram testados num deploy ao vivo.
+# antes de divulgar (ver nota no fim de docs/deploy-render.md).
 # =============================================================================
 
 databases:
@@ -137,19 +143,13 @@ services:
         value: "false"
       - key: DATABASE_SAVE_IS_ON_WHATSAPP
         value: "false"
+      # Cache local (sem Redis): uma instalação de um cliente só não precisa
+      # de um Redis gerenciado à parte — isso já corta um serviço pago do
+      # total mensal, sem perder funcionalidade nesta escala.
       - key: CACHE_REDIS_ENABLED
-        value: "true"
-      - key: CACHE_REDIS_PREFIX_KEY
-        value: evolution
-      - key: CACHE_REDIS_SAVE_INSTANCES
         value: "false"
       - key: CACHE_LOCAL_ENABLED
-        value: "false"
-      - key: CACHE_REDIS_URI
-        fromService:
-          name: cache
-          type: keyvalue
-          property: connectionString
+        value: "true"
       - key: WEBHOOK_GLOBAL_ENABLED
         value: "false"
       - key: WEBHOOK_EVENTS_QRCODE_UPDATED
@@ -174,11 +174,3 @@ services:
         value: "true"
       - key: AUTHENTICATION_API_KEY
         generateValue: true
-
-  # ------------------------------------------------------------------ cache
-  - type: keyvalue
-    name: cache
-    plan: starter
-    region: virginia
-    ipAllowList: []
-    maxmemoryPolicy: allkeys-lru
