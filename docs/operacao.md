@@ -1,44 +1,68 @@
-# Operação — servidor Evolution + painel
+# Operação — referência técnica do VPS
 
-## Subir do zero (VPS Ubuntu, 4 GB+ de RAM)
+Guia técnico para quem vai mexer por baixo do capô. Para o passo a passo
+simples que vai para o aluno, ver `docs/instalar-vps.md`.
 
-1. Crie o VPS (Hetzner CPX21/CPX31, Contabo, Hostinger KVM 2/4). Anote o IP.
-2. DNS: crie `painel.seudominio.com` e `evo.seudominio.com` apontando para o IP (registro A).
-3. No VPS:
-   ```bash
-   ssh root@IP
-   apt-get install -y git
-   git clone <URL-DO-REPO> /opt/chatbot
-   cd /opt/chatbot
-   bash infra/provision.sh        # instala Docker, cria os .env de exemplo
-   nano infra/.env                # domínios, POSTGRES_PASSWORD, EVOLUTION_API_KEY
-   nano infra/app.env             # APP_SECRET, INTERNAL_TOKEN, admin inicial
-   bash infra/provision.sh        # agora sobe tudo
-   ```
-4. Abra `https://painel.seudominio.com`, entre com o admin inicial.
-5. **Admin → Servidores → Adicionar**: nome, `https://evo.seudominio.com`, a `EVOLUTION_API_KEY`, capacidade (comece com 30). "Testar" precisa ficar verde.
-6. Crie a primeira conta em **Admin → Contas** e envie o link de senha para o aluno.
+Desde a decisão de "instalação de conta única" (cada aluno com o próprio
+servidor), este VPS pertence e é operado por quem instalou — não existe mais
+um "Admin → Contas" da Daxus provisionando alunos aqui. O primeiro acesso já
+cria a conta do próprio dono da instalação sozinho (ver `bootstrapCore` em
+`src/server/db/bootstrap.ts`).
+
+## Subir do zero
+
+```bash
+ssh root@SEU-IP
+curl -fsSL https://raw.githubusercontent.com/SEU-USUARIO/SEU-REPO/main/infra/provision.sh | bash
+```
+
+O script (`infra/provision.sh`) faz tudo sozinho: instala Docker, pergunta
+nome do negócio / e-mail / senha, gera todas as senhas e chaves internas,
+gera um domínio com HTTPS automático via [sslip.io](https://sslip.io) quando
+não há domínio próprio, sobe os serviços e agenda o backup diário. Rodar de
+novo detecta a instalação existente e oferece só reiniciar/atualizar.
+
+Só depois disso é que existe algo para configurar dentro do painel
+(Supabase, OpenAI, primeiro número) — isso já é guiado pela própria interface.
+
+## Arquitetura no VPS
+
+- `caddy`: único serviço exposto à internet (portas 80/443), HTTPS automático.
+- `app`: o painel (Next.js), só acessível via Caddy.
+- `evolution`: API do WhatsApp, **sem porta publicada** (`expose`, não
+  `ports`) — só o `app` fala com ela pela rede interna do Docker. Cadastrada
+  sozinha no banco do painel via `EVOLUTION_BUNDLED_HOST/PORT/API_KEY`
+  (mesmas variáveis usadas na instalação via Render).
+- `postgres`: um Postgres só, duas bases lógicas (`chatbot` para o painel,
+  `evolution` para a sessão do WhatsApp) — criadas por `infra/init-db.sql`.
+- `redis`: cache do Evolution.
 
 ## Rotina
 
 | Quando | O quê |
 |---|---|
 | Diário (automático) | Backup do Postgres em `/var/backups/chatbot` (14 dias). Copie para fora do VPS (rclone → Google Drive/S3). |
-| Semanal | `docker compose -f infra/docker-compose.yml --env-file infra/.env ps` e olhar **Admin → Eventos** (erros). |
-| Capacidade > 80% | Subir outro VPS só com Evolution (mesmo compose sem `app`/`caddy` do painel, ou o compose inteiro num domínio novo) e cadastrar em Admin → Servidores. Números novos vão para o servidor com mais vaga. |
-| WhatsApp quebrou (todos os números caindo/QR não conecta) | Atualizar a Evolution: `docker compose ... pull evolution && docker compose ... up -d evolution`. Antes, olhe as notas da versão em github.com/EvolutionAPI/evolution-api/releases. |
+| Semanal | `docker compose -f infra/docker-compose.yml --env-file infra/.env ps` e olhar **Admin → Eventos** dentro do painel (erros). |
+| WhatsApp quebrou (números caindo, QR não conecta) | Atualizar a Evolution: `docker compose -f infra/docker-compose.yml pull evolution && docker compose -f infra/docker-compose.yml --env-file infra/.env up -d evolution`. Antes, olhe as notas da versão em github.com/EvolutionAPI/evolution-api/releases. |
 | Atualizar o painel | `git pull && docker compose -f infra/docker-compose.yml --env-file infra/.env up -d --build app` (migrations rodam sozinhas). |
+| Quer mais de um servidor Evolution (crescer capacidade) | Subir outro VPS só com Evolution e cadastrar em Admin → Servidores — o restante da arquitetura (`evolution_nodes`, `pickNode()`) já foi pensado para múltiplos servidores por conta, mesmo numa instalação de conta única. |
 
-## Dimensionamento (validar na Fase 0)
+## Dimensionamento
 
-- Cada instância Baileys consome ~80–150 MB de RAM ociosa; picos ao sincronizar.
-- Referência inicial: VPS de 8 GB ≈ 30–40 números. Meça com `docker stats` e ajuste a capacidade cadastrada.
+- Cada instância Baileys consome ~80–150 MB de RAM ociosa; picos ao
+  sincronizar. Um VPS de 2 a 4 GB já atende uma instalação de conta única com
+  vários números.
+- Meça com `docker stats` se pensar em crescer além de uma dúzia de números
+  no mesmo servidor.
 
 ## Coisas que NÃO fazer
 
-- Nunca trocar `APP_SECRET` depois de ter contas: os segredos salvos ficam ilegíveis.
-- Nunca ligar `DATABASE_SAVE_DATA_NEW_MESSAGE` na Evolution: quebra a promessa de que não guardamos conversas.
-- Não expor a porta 8080 da Evolution direto; só via Caddy (HTTPS).
+- Nunca trocar `APP_SECRET` (em `infra/app.env`) depois de ter dados: os
+  segredos salvos (string do Supabase, chave da OpenAI) ficam ilegíveis.
+- Nunca ligar `DATABASE_SAVE_DATA_NEW_MESSAGE` na Evolution: quebra a
+  promessa de que não guardamos conversas.
+- Não publicar a porta 8080 da Evolution (`ports:` em vez de `expose:`) — ela
+  deve continuar só acessível pela rede interna do Docker.
 
 ## Restaurar backup
 
@@ -49,4 +73,7 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env restart evoluti
 
 ## Monitor externo (opcional)
 
-Além do monitor interno, um cron fora do VPS pode chamar `GET https://painel.../api/internal/monitor` com header `x-internal-token: <INTERNAL_TOKEN>` e alertar se não responder 200.
+Além do monitor interno, um cron fora do VPS pode chamar
+`GET https://SEU-DOMINIO/api/internal/monitor` com header
+`x-internal-token: <INTERNAL_TOKEN>` (de `infra/app.env`) e alertar se não
+responder 200.

@@ -4,16 +4,18 @@ Objetivo: provar o caminho real de ponta a ponta e medir capacidade. Tudo abaixo
 
 ## Preparação
 
-- [ ] VPS Ubuntu com IP público e dois subdomínios (`painel.`, `evo.`) apontados.
+- [ ] VPS Ubuntu com IP público (não precisa de domínio próprio — o
+      instalador gera um endereço via sslip.io se faltar um).
 - [ ] Chip com WhatsApp ativo num celular (número de teste). Ideal: um segundo celular para fazer o papel do cliente.
 - [ ] Chave OpenAI com créditos (pode ser a de dev: `DEV_OPENAI_API_KEY`).
 - [ ] Um projeto Supabase de teste (string de conexão Session pooler).
 
 ## Subir a Evolution real
 
-- [ ] `bash infra/provision.sh` conforme `docs/operacao.md`.
-- [ ] `https://evo.seudominio.com` responde (JSON com versão).
-- [ ] Cadastrar em Admin → Servidores e "Testar" ficar verde.
+- [ ] `curl -fsSL .../infra/provision.sh | bash` conforme `docs/instalar-vps.md`; responder às perguntas.
+- [ ] O painel abre em `https://SEU-DOMINIO/login` ao final da instalação.
+- [ ] Login com o e-mail/senha dados na instalação cai direto no painel (não numa tela de "Admin → Contas" vazia).
+- [ ] Em Admin → Servidores, o servidor Evolution já aparece cadastrado sozinho (cadastro automático via `EVOLUTION_BUNDLED_*`), sem precisar clicar em "Adicionar". "Testar" fica verde.
 
 ## Validar a integração (itens marcados "validar" no código)
 

@@ -1,13 +1,9 @@
 # =============================================================================
 # Servidor completo num VPS só: Evolution API + Postgres + Redis + Painel + Caddy (HTTPS)
 #
-#   cp infra/app.env.example infra/app.env          (edite os valores)
-#   cp infra/evolution.env.example infra/evolution.env
-#   docker compose -f infra/docker-compose.yml up -d
-#
-# Domínios (apontar DNS para o IP do VPS antes de subir):
-#   APP_DOMAIN  → painel (ex.: painel.seudominio.com)
-#   EVO_DOMAIN  → Evolution API (ex.: evo.seudominio.com)
+# Não edite este arquivo nem os .env na mão — rode infra/provision.sh, ele faz
+# as perguntas e gera tudo sozinho. Ver docs/instalar-vps.md para o passo a
+# passo completo.
 # =============================================================================
 name: chatbot
 
@@ -20,14 +16,12 @@ services:
       - "443:443"
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
-      EVO_DOMAIN: ${EVO_DOMAIN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       - app
-      - evolution
 
   postgres:
     image: postgres:16-alpine
@@ -52,12 +46,13 @@ services:
     volumes:
       - redis_data:/data
 
+  # Só conversa com o serviço "app" (rede interna do Docker); "expose" (e não
+  # "ports") garante que ninguém de fora do VPS acessa direto.
   evolution:
     image: evoapicloud/evolution-api:latest
     restart: unless-stopped
     env_file: ./evolution.env
     environment:
-      SERVER_URL: https://${EVO_DOMAIN}
       DATABASE_CONNECTION_URI: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/evolution?schema=public
       CACHE_REDIS_URI: redis://redis:6379/6
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}

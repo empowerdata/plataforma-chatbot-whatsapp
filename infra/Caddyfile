@@ -1,10 +1,7 @@
-# HTTPS automático (Let's Encrypt). Os domínios vêm do .env do compose.
+# HTTPS automático (Let's Encrypt). O domínio vem do .env do compose.
+# Só o painel fica exposto à internet — o Evolution é interno, só o painel
+# fala com ele (mesmo princípio da instalação via Render).
 {$APP_DOMAIN} {
 	encode gzip
 	reverse_proxy app:3000
-}
-
-{$EVO_DOMAIN} {
-	encode gzip
-	reverse_proxy evolution:8080
 }
