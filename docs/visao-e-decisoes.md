@@ -400,8 +400,18 @@ reverificar depois de mexer no código relacionado).
   app precisa ficar "em produção", não "em teste" (em teste a autorização
   expira em 7 dias); e o Google provavelmente exige domínio próprio no
   endereço de retorno (o sslip.io automático pode não ser aceito).
-  Alternativa sem botão: conta de serviço, com o cliente compartilhando a
-  agenda com um e-mail. Fases sugeridas: (1) consultar e sugerir
+  Outras formas levantadas, sem nenhum app do Google:
+  **link secreto iCal** (o cliente copia o "Endereço secreto no formato
+  iCal" da agenda e cola no portal; o bot só LÊ os horários ocupados e
+  sugere os livres, e a equipe confirma a marcação — zero configuração do
+  aluno, bom primeiro passo; contas Google Workspace podem ter isso
+  bloqueado pelo administrador); **Cal.com por chave de API** (o cliente
+  conecta o Google dentro do Cal.com, que já tem app verificado, e cola a
+  chave no portal; o bot consulta e marca de verdade; depende de mais um
+  serviço); **agenda própria dentro da plataforma** (sem Google nenhum, com
+  link iCal para o cliente ver no celular; risco de marcação dupla se ele
+  também agendar por fora); e a conta de serviço, com o cliente
+  compartilhando a agenda com um e-mail. Fases sugeridas: (1) consultar e sugerir
   horários; (2) marcar com confirmação; (3) remarcar/cancelar e lembretes.
   Atalho sem integração, se quiser algo já: o bot manda o link de
   agendamento do cliente (páginas de agendamento do Google Agenda,
