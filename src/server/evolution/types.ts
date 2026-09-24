@@ -49,6 +49,8 @@ export type SendMediaInput = {
   caption?: string;
   fileName?: string;
 };
+/** Mensagem de voz (aparece como áudio gravado no WhatsApp). O Evolution converte o formato com ffmpeg. */
+export type SendAudioInput = { number: string; /** base64 sem prefixo data: */ audio: string };
 export type SendLocationInput = { number: string; name: string; address: string; latitude: number; longitude: number };
 
 export type SendResult = { messageId: string; raw?: unknown };
@@ -62,10 +64,12 @@ export type InboundMessage = {
   fromMe: boolean;
   isGroup: boolean;
   pushName?: string;
-  type: "text" | "audio" | "image" | "document" | "sticker" | "location" | "other";
+  type: "text" | "audio" | "image" | "video" | "document" | "sticker" | "location" | "other";
   text?: string;
   caption?: string;
   mimeType?: string;
+  /** Nome do arquivo (documentos). */
+  fileName?: string;
   location?: { latitude: number; longitude: number; name?: string; address?: string };
   timestamp: number;
   /** Payload original (para baixar mídia depois). */
@@ -101,9 +105,14 @@ export interface EvolutionClient {
   deleteInstance(instanceName: string): Promise<void>;
   sendText(instanceName: string, input: SendTextInput): Promise<SendResult>;
   sendMedia(instanceName: string, input: SendMediaInput): Promise<SendResult>;
+  sendAudio(instanceName: string, input: SendAudioInput): Promise<SendResult>;
   sendLocation(instanceName: string, input: SendLocationInput): Promise<SendResult>;
   sendPresence(instanceName: string, number: string, presence: "composing" | "paused" | "recording", delayMs?: number): Promise<void>;
   markRead(instanceName: string, remoteJid: string, messageId: string): Promise<void>;
-  /** Baixa a mídia de uma mensagem recebida (base64 + mime). */
-  getMedia(instanceName: string, raw: unknown): Promise<{ base64: string; mimeType: string } | null>;
+  /**
+   * Baixa a mídia de uma mensagem (base64 + mime). `raw` é a mensagem no formato
+   * do Evolution ou um MediaRef. `audioAsMp4` converte áudio para MP4, que toca
+   * em qualquer navegador (o OGG do WhatsApp não toca em todo Safari).
+   */
+  getMedia(instanceName: string, raw: unknown, opts?: { audioAsMp4?: boolean }): Promise<{ base64: string; mimeType: string } | null>;
 }

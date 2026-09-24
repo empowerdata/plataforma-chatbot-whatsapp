@@ -47,8 +47,14 @@ export function webhookUrlFor(token: string): string {
   return `${env.APP_URL.replace(/\/+$/, "")}/api/webhooks/evolution/${token}`;
 }
 
-/** Cria a instância no servidor Evolution e o registro do número. */
-export async function createNumber(input: { accountId: string; label: string; clientId?: string | null; pairingPhone?: string | null }): Promise<NumberRow> {
+/**
+ * Cria a instância no servidor Evolution e o registro do número. Todo número
+ * pertence a um cliente: com a conexão não oficial (Baileys), um número é o
+ * WhatsApp de um negócio só, e é pelo cliente que o portal e os indicadores
+ * separam as conversas.
+ */
+export async function createNumber(input: { accountId: string; label: string; clientId: string; pairingPhone?: string | null }): Promise<NumberRow> {
+  if (!input.clientId) throw new Error("Escolha o cliente deste número.");
   const db = await getDb();
   const account = await getAccount(input.accountId);
   if (!account) throw new Error("Conta não encontrada.");
@@ -68,7 +74,7 @@ export async function createNumber(input: { accountId: string; label: string; cl
     .insert(schema.numbers)
     .values({
       accountId: input.accountId,
-      clientId: input.clientId ?? null,
+      clientId: input.clientId,
       nodeId: node.id,
       label: input.label.trim(),
       instanceName: created.instanceName,
@@ -176,7 +182,7 @@ export async function deleteNumber(accountId: string, id: string): Promise<void>
   await db.delete(schema.numbers).where(eq(schema.numbers.id, id));
 }
 
-export async function updateNumber(accountId: string, id: string, patch: { label?: string; clientId?: string | null; variables?: Record<string, string>; settings?: NumberSettings; botEnabled?: boolean }): Promise<void> {
+export async function updateNumber(accountId: string, id: string, patch: { label?: string; clientId?: string; variables?: Record<string, string>; settings?: NumberSettings; botEnabled?: boolean }): Promise<void> {
   const db = await getDb();
   const set: Partial<typeof schema.numbers.$inferInsert> = { updatedAt: new Date() };
   if (patch.label !== undefined) set.label = patch.label.trim();

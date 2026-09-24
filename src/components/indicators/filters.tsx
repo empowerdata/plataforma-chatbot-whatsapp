@@ -29,7 +29,7 @@ export function IndicatorFilters({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {clients && clients.length > 1 ? (
+      {clients && clients.length > 0 ? (
         <select
           value={clientId ?? ""}
           onChange={(e) => router.push(href(days, e.target.value || null))}

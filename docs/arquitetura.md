@@ -75,6 +75,13 @@ A mesma tela para a equipe do aluno (`/conversas`) e para o cliente final (`/por
 - O **estado do bot** em cada conversa é calculado em um lugar só (`computeBotState`): ativo, pausado (com o motivo e a hora de voltar), desligado à mão, contato bloqueado, bot desligado no número, sem bot. A tela explica o porquê e oferece a ação certa ("Reativar agora", "Ligar o bot"…).
 - **Responder pelo painel** envia pela Evolution, marca o id em `sent-cache` (o eco não vira "pelo celular") e pausa o bot pelo mesmo tempo de uma resposta pelo celular. O interruptor liga na hora.
 
+### Mídia na caixa de entrada (`media-ref.ts`, `/api/inbox/media/[id]`, `/api/inbox/send-media`)
+
+Nenhum arquivo fica guardado no servidor. Cada mensagem de mídia (recebida, enviada pelo celular ou pelo painel) guarda em `meta.media` só o endereço dela no WhatsApp (`MediaRef`: chave + mensagem sem miniatura). A tela pede `/api/inbox/media/[id]`, que confere o escopo pela conversa e baixa pelo Evolution (`getBase64FromMediaMessage`; áudio convertido para MP4 para tocar em qualquer navegador). O Evolution não guarda mensagens (`DATABASE_SAVE_DATA_NEW_MESSAGE=false`), por isso o endereço é nosso.
+
+- **Envio**: `POST /api/inbox/send-media` (FormData; rota e não server action, que limita o corpo a 1 MB). Foto (jpeg/png/webp), vídeo (mp4/3gpp), documento (o resto) até 16 MB; áudio sempre como mensagem de voz (`sendWhatsAppAudio`, o Evolution converte com ffmpeg). Depois do envio vale o mesmo de uma resposta em texto (`afterTeamSend`: registra, pausa o bot, reabre). O endereço vem da resposta do envio e é trocado pelo do eco do webhook, quando ele chega.
+- As rotas `/api/inbox/*` ficam fora do `proxy.ts`: o proxy do Next copia o corpo com limite de 10 MB. Elas validam a sessão sozinhas (`inboxScopeFromSession`).
+
 ### Indicadores (`src/server/services/indicators.ts` + `src/components/indicators/`)
 
 Mesma tela para a equipe (`/indicadores`, filtro por cliente) e para o cliente final (`/portal`), com o mesmo escopo por números da caixa de entrada. Cada número sai de um lugar:

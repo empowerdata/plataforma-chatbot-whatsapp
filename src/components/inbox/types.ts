@@ -42,6 +42,12 @@ export type InboxListItem = {
   status: ConversationStatus;
 };
 
+/** Mídia de uma mensagem: o arquivo é buscado no WhatsApp só quando a tela pede (`url`). */
+export type InboxMedia = { kind: "image" | "video" | "audio" | "document" | "sticker"; url: string; fileName: string | null };
+
+/** Limite de envio pelo painel (o do WhatsApp para foto e vídeo). */
+export const MEDIA_MAX_BYTES = 16 * 1024 * 1024;
+
 export type InboxThreadItem =
   | { kind: "day"; id: string; label: string }
   | { kind: "event"; id: string; text: string }
@@ -51,7 +57,11 @@ export type InboxThreadItem =
       sender: "contact" | "bot" | "human";
       /** Quem da equipe escreveu (mensagens enviadas pelo painel) ou "pelo celular". */
       author: string | null;
+      /** Texto ou legenda (pode ser vazio numa mídia sem legenda). */
       body: string;
+      media: InboxMedia | null;
+      /** Transcrição de um áudio recebido. */
+      transcript: string | null;
       time: string;
       /** Detalhe técnico da resposta do bot (modelo, tempo, tokens) — só na visão da equipe. */
       meta: string | null;

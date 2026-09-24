@@ -19,6 +19,13 @@ Para o histórico de decisões e o porquê de cada uma, ver
   pausado/desligado, categoria, finalizar/reabrir, notas internas,
   atualização automática a cada 5 s. Visual compacto (redesenho de
   2026-09-24).
+- **Arquivos e áudio na conversa**: pelo painel a equipe e o cliente final
+  enviam foto, vídeo, documento (até 16 MB) e áudio gravado no navegador (vai
+  como mensagem de voz). As mídias recebidas e enviadas aparecem na conversa
+  (foto em miniatura que amplia, player de áudio com a transcrição, documento
+  para baixar), buscadas no WhatsApp na hora — nada fica guardado no servidor.
+- **Todo número pertence a um cliente** (obrigatório ao cadastrar e ao
+  editar), e o filtro por cliente fica sempre à vista para a equipe.
 - **Indicadores** (`/indicadores` para a equipe, com filtro por cliente;
   `/portal` para o cliente final): conversas iniciadas (com variação sobre o
   período anterior), em aberto e aguardando agora, finalizadas, % resolvida
@@ -97,8 +104,8 @@ qualquer divulgação para alunos.
 
 ## Fase 3 — produto
 
-- Caixa de entrada, próximos passos: respostas rápidas (atalho "/"), enviar
-  arquivo/áudio pelo painel, "não lidas", talvez tema claro no portal.
+- Caixa de entrada, próximos passos: respostas rápidas (atalho "/"), "não
+  lidas", talvez tema claro no portal.
 - **Agenda (Google Agenda e afins)** para clínicas, salões e personal
   trainers, em etapas:
   1. **Link secreto iCal** (recomendado para começar): o cliente cola o

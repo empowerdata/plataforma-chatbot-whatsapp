@@ -23,6 +23,7 @@ delete process.env.DEV_OPENAI_API_KEY;
 describe("engine ponta a ponta (Evolution simulada + IA simulada)", () => {
   let accountId: string;
   let numberId: string;
+  let ownerClientId: string;
   let instanceName: string;
   let fake: import("@/server/evolution/fake").FakeEvolutionClient;
   let store: import("@/server/tenant/store").TenantStore;
@@ -81,7 +82,9 @@ describe("engine ponta a ponta (Evolution simulada + IA simulada)", () => {
     const { createBot } = await import("@/server/services/bots");
     const { createNumber, assignBot, updateNumber } = await import("@/server/services/numbers");
     const bot = await createBot({ accountId, name: "Bot", templateKey: "pizzaria", businessName: "Pizzaria Teste" });
-    const number = await createNumber({ accountId, label: "Teste", clientId: null });
+    const [owner] = await db.insert(schema.clients).values({ accountId, name: "Pizzaria Teste" }).returning();
+    ownerClientId = owner.id;
+    const number = await createNumber({ accountId, label: "Teste", clientId: owner.id });
     numberId = number.id;
     instanceName = number.instanceName;
     await assignBot(accountId, number.id, bot.id);
@@ -106,6 +109,11 @@ describe("engine ponta a ponta (Evolution simulada + IA simulada)", () => {
     [n] = await db.select().from(schema.numbers).where(eq(schema.numbers.id, numberId));
     expect(n.status).toBe("open");
     expect(n.phone).toBe("5511988880000");
+  });
+
+  it("número sem cliente é recusado (um número é o WhatsApp de um negócio só)", async () => {
+    const { createNumber } = await import("@/server/services/numbers");
+    await expect(createNumber({ accountId, label: "Sem dono", clientId: "" })).rejects.toThrow("Escolha o cliente");
   });
 
   it("responde a uma mensagem do cliente e registra tudo no banco do aluno", async () => {
@@ -299,7 +307,7 @@ describe("engine ponta a ponta (Evolution simulada + IA simulada)", () => {
       expect(await getInboxConversation(other, conversation.id)).toBeNull();
       await expect(setInboxResolved(other, conversation.id, true)).rejects.toThrow("Conversa não encontrada.");
     } finally {
-      await db.update(schema.numbers).set({ clientId: null }).where(eq(schema.numbers.id, numberId));
+      await db.update(schema.numbers).set({ clientId: ownerClientId }).where(eq(schema.numbers.id, numberId));
     }
   });
 
@@ -328,5 +336,33 @@ describe("engine ponta a ponta (Evolution simulada + IA simulada)", () => {
     const stranger = await getIndicators({ accountId, clientId: "00000000-0000-4000-8000-000000000000", staff: false }, 7);
     expect(stranger.hasNumbers).toBe(false);
     expect(stranger.kpis.started).toBe(0);
+  });
+
+  it("arquivo e áudio pelo painel: vão pelo WhatsApp, aparecem na conversa e só quem tem acesso baixa", async () => {
+    const { sendInboxMedia, getInboxConversation, getInboxMedia } = await import("@/server/services/inbox");
+    const { conversation } = await conversationOf("5511977770020");
+
+    await sendInboxMedia(staffScope(), conversation.id, { data: Buffer.from("%PDF-1.4 teste"), mime: "application/pdf", name: "cardapio.pdf" }, { caption: "Segue o cardápio" }, "Maria");
+    await sendInboxMedia(staffScope(), conversation.id, { data: Buffer.from("audio-gravado"), mime: "audio/webm", name: "audio.webm" }, {}, "Maria");
+    const out = fake.outbox(instanceName, "5511977770020").map((m) => m.text ?? "");
+    expect(out.some((t) => t.includes("Segue o cardápio"))).toBe(true);
+    expect(out).toContain("[áudio de voz]"); // áudio vai como mensagem de voz
+
+    const detail = await getInboxConversation(staffScope(), conversation.id);
+    const withMedia = (detail?.thread ?? []).filter((i) => i.kind === "message" && i.media);
+    const doc = withMedia.find((i) => i.kind === "message" && i.media?.kind === "document");
+    const voice = withMedia.find((i) => i.kind === "message" && i.media?.kind === "audio");
+    expect(doc).toMatchObject({ body: "Segue o cardápio", author: "Maria", media: { fileName: "cardapio.pdf" } });
+    expect(voice).toBeTruthy();
+
+    const got = await getInboxMedia(staffScope(), doc!.id);
+    expect(got.data.toString()).toBe("%PDF-1.4 teste");
+    expect(got).toMatchObject({ mime: "application/pdf", fileName: "cardapio.pdf" });
+    // Outro cliente não baixa o arquivo, nem adivinhando o id.
+    await expect(getInboxMedia({ accountId, clientId: "00000000-0000-4000-8000-000000000000", staff: false }, doc!.id)).rejects.toThrow("Mídia não encontrada");
+    await expect(sendInboxMedia(staffScope(), conversation.id, { data: Buffer.alloc(16 * 1024 * 1024 + 1), mime: "image/png", name: "grande.png" }, {}, "Maria")).rejects.toThrow("16 MB");
+
+    // Prévia da lista em português, não "[document]".
+    expect((await store.getConversation(conversation.id))?.last_message_preview).toBe("🎤 Áudio");
   });
 });

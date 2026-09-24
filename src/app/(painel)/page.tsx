@@ -4,6 +4,7 @@ import { requireAccount } from "@/server/auth/guards";
 import { getOverview } from "@/server/services/stats";
 import { getIntegrationView } from "@/server/services/integrations";
 import { listEvents } from "@/server/services/events";
+import { listClients } from "@/server/services/clients";
 import { Badge, Card, CardHeader, EmptyState, PageHeader, StatusDot } from "@/components/ui/primitives";
 import { numberStatusMeta } from "@/components/ui/status";
 import { formatNumber, formatRelative } from "@/lib/utils";
@@ -19,14 +20,15 @@ export default async function OverviewPage(props: PageProps<"/">) {
   const days = PERIODS.includes(diasParam as (typeof PERIODS)[number]) ? diasParam : 30;
 
   const { account } = await requireAccount();
-  const [overview, integrations, events] = await Promise.all([getOverview(account.id, days), getIntegrationView(account.id), listEvents(account.id, 8)]);
+  const [overview, integrations, events, clients] = await Promise.all([getOverview(account.id, days), getIntegrationView(account.id), listEvents(account.id, 8), listClients(account.id)]);
 
   const databaseReady = integrations.supabase.configured || integrations.supabase.usingServerDb || integrations.supabase.usingLocalDev;
   const setup = [
     // Numa instalação própria o banco já vem pronto; o passo só aparece se faltar mesmo.
     ...(databaseReady ? [] : [{ done: false, label: "Configurar o banco de dados das conversas", href: "/integracoes" }]),
     { done: integrations.openai.configured || integrations.openai.usingDevKey, label: "Conectar a OpenAI", href: "/integracoes" },
-    { done: overview.numbers.length > 0, label: "Adicionar um número de WhatsApp", href: "/numeros" },
+    { done: clients.length > 0, label: "Cadastrar o primeiro cliente (o negócio que você atende)", href: "/clientes" },
+    { done: overview.numbers.length > 0, label: "Adicionar o número de WhatsApp do cliente", href: "/numeros" },
     { done: overview.numbers.some((n) => n.botName), label: "Atribuir um bot ao número", href: "/bots" },
   ];
   const pendingSetup = setup.filter((s) => !s.done);

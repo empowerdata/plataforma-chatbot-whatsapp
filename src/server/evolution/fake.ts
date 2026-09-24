@@ -12,6 +12,7 @@ import type {
   EvolutionClient,
   InstanceInfo,
   QrInfo,
+  SendAudioInput,
   SendLocationInput,
   SendMediaInput,
   SendResult,
@@ -212,11 +213,35 @@ export class FakeEvolutionClient implements EvolutionClient {
     return { messageId: id };
   }
 
+  // Mídias enviadas ficam só em memória (somem ao reiniciar), para o painel conseguir mostrá-las em dev.
+  private media = new Map<string, { base64: string; mimeType: string }>();
+
+  private keepMedia(id: string, base64: string, mimeType: string) {
+    if (base64.startsWith("http")) return;
+    this.media.set(id, { base64, mimeType });
+    if (this.media.size > 50) this.media.delete(this.media.keys().next().value!);
+  }
+
+  /** Resposta no formato da Evolution real, com os bytes serializados como a API devolve. */
+  private sentRaw(id: string, number: string, type: string, fields: Record<string, unknown>) {
+    return { key: { id, remoteJid: `${number}@s.whatsapp.net`, fromMe: true }, message: { [type]: { ...fields, mediaKey: { 0: 1, 1: 2, 2: 3 } } } };
+  }
+
   async sendMedia(instanceName: string, input: SendMediaInput): Promise<SendResult> {
     const inst = this.get(instanceName);
     const id = `FAKEM${randomToken(8).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 14)}`;
-    this.record(inst, { id, to: input.number, kind: "media", text: `[${input.mediaType}] ${input.caption ?? ""} ${input.media.slice(0, 80)}`, at: Date.now() });
-    return { messageId: id };
+    this.record(inst, { id, to: input.number, kind: "media", text: `[${input.mediaType}] ${input.caption ?? input.fileName ?? ""} ${input.media.startsWith("http") ? input.media.slice(0, 80) : ""}`.trim(), at: Date.now() });
+    const mimeType = input.mimeType ?? "application/octet-stream";
+    this.keepMedia(id, input.media, mimeType);
+    return { messageId: id, raw: this.sentRaw(id, input.number, `${input.mediaType}Message`, { mimetype: mimeType, caption: input.caption, fileName: input.fileName }) };
+  }
+
+  async sendAudio(instanceName: string, input: SendAudioInput): Promise<SendResult> {
+    const inst = this.get(instanceName);
+    const id = `FAKEA${randomToken(8).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 14)}`;
+    this.record(inst, { id, to: input.number, kind: "media", text: "[áudio de voz]", at: Date.now() });
+    this.keepMedia(id, input.audio, "audio/webm");
+    return { messageId: id, raw: this.sentRaw(id, input.number, "audioMessage", { mimetype: "audio/ogg; codecs=opus", ptt: true }) };
   }
 
   async sendLocation(instanceName: string, input: SendLocationInput): Promise<SendResult> {
@@ -233,8 +258,9 @@ export class FakeEvolutionClient implements EvolutionClient {
 
   async markRead(): Promise<void> {}
 
-  async getMedia(): Promise<{ base64: string; mimeType: string } | null> {
-    return null;
+  async getMedia(_instanceName: string, raw: unknown): Promise<{ base64: string; mimeType: string } | null> {
+    const id = (raw as { key?: { id?: string } } | null)?.key?.id;
+    return (id && this.media.get(id)) || null;
   }
 
   // ---------------------------------------------------------------- simulação

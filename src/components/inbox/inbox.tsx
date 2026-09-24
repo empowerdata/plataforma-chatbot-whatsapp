@@ -109,9 +109,10 @@ export function Inbox({
     return () => clearTimeout(t);
   }, [search, filters.search, go]);
 
-  const showClientFilter = audience === "staff" && clients.length > 1;
+  // Para a equipe o filtro de cliente fica sempre à vista (mesmo com um cliente só), para ninguém procurar por ele.
+  const showClientFilter = audience === "staff" && clients.length > 0;
   const showNumberFilter = numbers.length > 1;
-  const showClientOnRow = showClientFilter && !filters.clientId;
+  const showClientOnRow = audience === "staff" && clients.length > 1 && !filters.clientId;
   const filtered = !!(filters.category || filters.numberId || filters.clientId || filters.search);
 
   return (

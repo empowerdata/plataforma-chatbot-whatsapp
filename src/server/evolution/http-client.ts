@@ -5,6 +5,7 @@ import type {
   EvolutionClient,
   InstanceInfo,
   QrInfo,
+  SendAudioInput,
   SendLocationInput,
   SendMediaInput,
   SendResult,
@@ -166,6 +167,16 @@ export class HttpEvolutionClient implements EvolutionClient {
     return { messageId: data.key?.id ?? "", raw: data };
   }
 
+  async sendAudio(instanceName: string, input: SendAudioInput): Promise<SendResult> {
+    // encoding: o Evolution converte (ffmpeg) para o formato de mensagem de voz do WhatsApp.
+    const data = await this.request<{ key?: { id?: string } }>("POST", `/message/sendWhatsAppAudio/${encodeURIComponent(instanceName)}`, {
+      number: input.number,
+      audio: input.audio,
+      encoding: true,
+    });
+    return { messageId: data.key?.id ?? "", raw: data };
+  }
+
   async sendLocation(instanceName: string, input: SendLocationInput): Promise<SendResult> {
     const data = await this.request<{ key?: { id?: string } }>("POST", `/message/sendLocation/${encodeURIComponent(instanceName)}`, {
       number: input.number,
@@ -187,11 +198,11 @@ export class HttpEvolutionClient implements EvolutionClient {
     });
   }
 
-  async getMedia(instanceName: string, raw: unknown): Promise<{ base64: string; mimeType: string } | null> {
+  async getMedia(instanceName: string, raw: unknown, opts?: { audioAsMp4?: boolean }): Promise<{ base64: string; mimeType: string } | null> {
     const data = await this.request<{ base64?: string; mimetype?: string }>(
       "POST",
       `/chat/getBase64FromMediaMessage/${encodeURIComponent(instanceName)}`,
-      { message: raw, convertToMp4: false },
+      { message: raw, convertToMp4: opts?.audioAsMp4 === true },
     );
     if (!data.base64) return null;
     return { base64: data.base64, mimeType: data.mimetype ?? "application/octet-stream" };

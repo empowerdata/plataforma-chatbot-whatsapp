@@ -81,8 +81,16 @@ export function parseMessage(data: Record<string, unknown>): InboundMessage | nu
   const audio = message.audioMessage as Record<string, unknown> | undefined;
   if (audio) return { ...base, type: "audio", mimeType: String(audio.mimetype ?? "audio/ogg") };
 
-  const doc = message.documentMessage as Record<string, unknown> | undefined;
-  if (doc) return { ...base, type: "document", caption: typeof doc.caption === "string" ? doc.caption : undefined, mimeType: String(doc.mimetype ?? "application/octet-stream"), text: typeof doc.fileName === "string" ? doc.fileName : undefined };
+  const video = (message.videoMessage ?? message.ptvMessage) as Record<string, unknown> | undefined;
+  if (video) return { ...base, type: "video", caption: typeof video.caption === "string" ? video.caption : undefined, mimeType: String(video.mimetype ?? "video/mp4") };
+
+  // Documento com legenda chega embrulhado em documentWithCaptionMessage.message.
+  const wrapped = (message.documentWithCaptionMessage as { message?: Record<string, unknown> } | undefined)?.message?.documentMessage;
+  const doc = (message.documentMessage ?? wrapped) as Record<string, unknown> | undefined;
+  if (doc) {
+    const fileName = typeof doc.fileName === "string" ? doc.fileName : undefined;
+    return { ...base, type: "document", caption: typeof doc.caption === "string" ? doc.caption : undefined, mimeType: String(doc.mimetype ?? "application/octet-stream"), fileName, text: fileName };
+  }
 
   if (message.stickerMessage) return { ...base, type: "sticker" };
 

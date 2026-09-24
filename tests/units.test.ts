@@ -192,6 +192,33 @@ describe("webhook-parser", () => {
     expect(conn).toMatchObject({ type: "connection.update", state: "open" });
     expect(parseWebhook({ event: "messages.update", instance: "x", data: {} }).type).toBe("ignored");
   });
+  it("lê vídeo e documento com legenda (embrulhado), com o nome do arquivo", () => {
+    const video = parseWebhook({ event: "messages.upsert", instance: "x", data: { key: { remoteJid: "1@s.whatsapp.net", id: "3" }, message: { videoMessage: { caption: "olha", mimetype: "video/mp4" } } } });
+    expect(video.type === "messages.upsert" && video.message).toMatchObject({ type: "video", caption: "olha" });
+    const doc = parseWebhook({
+      event: "messages.upsert",
+      instance: "x",
+      data: { key: { remoteJid: "1@s.whatsapp.net", id: "4" }, message: { documentWithCaptionMessage: { message: { documentMessage: { fileName: "orcamento.pdf", caption: "segue", mimetype: "application/pdf" } } } } },
+    });
+    expect(doc.type === "messages.upsert" && doc.message).toMatchObject({ type: "document", fileName: "orcamento.pdf", caption: "segue" });
+  });
+});
+
+describe("media-ref: endereço da mídia para baixar depois", () => {
+  it("do webhook: guarda chave e mensagem, descarta miniatura e contexto", async () => {
+    const { mediaRefFrom } = await import("@/server/evolution/media-ref");
+    const ref = mediaRefFrom({
+      key: { id: "ABC", remoteJid: "1@s.whatsapp.net", fromMe: false },
+      message: { imageMessage: { url: "https://mmg", mediaKey: "a2V5", directPath: "/v/t62", jpegThumbnail: "Z".repeat(5000), contextInfo: { quoted: 1 } }, messageContextInfo: {} },
+    });
+    expect(ref).toEqual({ key: { id: "ABC", remoteJid: "1@s.whatsapp.net", fromMe: false }, message: { imageMessage: { url: "https://mmg", mediaKey: "a2V5", directPath: "/v/t62" } } });
+    expect(mediaRefFrom({ key: { id: "X" }, message: { conversation: "oi" } })).toBeNull();
+  });
+  it("da resposta do envio: bytes serializados viram base64", async () => {
+    const { mediaRefFrom } = await import("@/server/evolution/media-ref");
+    const ref = mediaRefFrom({ key: { id: "S1", fromMe: true }, message: { audioMessage: { mediaKey: { 0: 1, 1: 2, 2: 3 }, fileSha256: { type: "Buffer", data: [4, 5] } } } });
+    expect(ref?.message).toEqual({ audioMessage: { mediaKey: "AQID", fileSha256: "BAU=" } });
+  });
 });
 
 describe("crypto", () => {

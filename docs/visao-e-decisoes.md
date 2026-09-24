@@ -238,6 +238,41 @@ o dia respondendo ali. O que mudou, e por quê:
 Validado com mais de 800 conversas falsas numa cópia do banco de
 desenvolvimento, pela equipe e pelo cliente, no computador e no celular.
 
+### Arquivos e áudio pela caixa de entrada, sem guardar arquivo
+
+Pedido do Lorennzo (2026-09-24): enviar arquivo e áudio pelo painel, como no
+WhatsApp. Ficou assim:
+
+- **Enviar**: clipe para foto, vídeo ou documento (até 16 MB, o limite do
+  WhatsApp para foto e vídeo; colar um print com Ctrl+V também anexa) e
+  microfone para gravar áudio no navegador — dá para ouvir antes de mandar, e
+  o cliente recebe como mensagem de voz, não como arquivo. Vale a mesma regra
+  da resposta em texto: o bot pausa naquele contato. O microfone só funciona
+  em endereço com cadeado (https), regra do navegador.
+- **Ver**: foto em miniatura (amplia ao clicar), vídeo e áudio com player (o
+  áudio recebido traz a transcrição embaixo), documento com botão de baixar —
+  tanto o que o cliente manda quanto o que a equipe envia, pelo painel ou pelo
+  celular.
+- **Nada de arquivo guardado no servidor.** Escolha do Lorennzo: a cópia
+  oficial já fica no celular do próprio número. O painel guarda só o
+  "endereço" da mídia (chave e caminho no WhatsApp, umas centenas de bytes;
+  `src/server/evolution/media-ref.ts`) e busca o arquivo pelo Evolution quando
+  alguém abre a conversa. Precisa ser assim porque o Evolution que instalamos
+  não guarda mensagens (`DATABASE_SAVE_DATA_NEW_MESSAGE=false`). Consequências
+  aceitas: mídia muito antiga pode ter expirado no WhatsApp e aparece como
+  "indisponível"; mídias de antes desta versão continuam só com a etiqueta.
+  Áudio e vídeo só baixam quando alguém dá play, para uma conversa cheia de
+  áudios não disparar dezenas de downloads.
+
+### Todo número pertence a um cliente
+
+Observação do Lorennzo: com a conexão não oficial (Baileys), cada número é o
+WhatsApp de um negócio; número sem cliente mistura atendimentos e some do
+portal e do filtro por cliente. Hoje o cliente é obrigatório ao cadastrar e
+ao editar um número (no serviço, não só na tela). Números antigos sem cliente
+continuam funcionando e aparecem com um aviso para escolher o dono. O primeiro
+passo da Visão geral passou a ser cadastrar o cliente.
+
 ### O Evolution (WhatsApp) nunca fica público
 
 Tanto no VPS quanto no Render, o servidor Evolution API não tem domínio nem
@@ -410,6 +445,8 @@ reverificar depois de mexer no código relacionado).
 | Interruptor do bot por conversa + estado explicado (pausado/desligado/motivo) | sim | sim |
 | Caixa de entrada com centenas de conversas: filtro por cliente/número, situação única, "carregar mais" | sim | sim (800+ conversas falsas numa cópia do banco, computador e celular, 2026-09-24) |
 | Indicadores com gráficos (equipe com filtro por cliente, e cliente final) | sim (números batem com a caixa de entrada e respeitam o escopo) | sim (mesma validação) |
+| Enviar foto, documento e áudio gravado pelo painel; ver mídias na conversa | sim (envio, exibição, escopo por cliente, limite de 16 MB) | sim, com WhatsApp simulado (foto, PDF e áudio pelo microfone do Chrome); falta no WhatsApp real |
+| Número sempre com cliente | sim | sim |
 | Banco das conversas no próprio servidor (sem Supabase) | parcial (fallback testado em dev) | não — validar no VPS depois do `git pull` (serviço `dados`) |
 | Horários no fuso de Brasília (servidor em UTC) | não | sim |
 | Bot não repete o nome da pessoa a cada mensagem | sim (instrução do prompt) | não — só dá para ver com a chave real da OpenAI |
@@ -472,7 +509,7 @@ reverificar depois de mexer no código relacionado).
   agendamento do cliente (páginas de agendamento do Google Agenda,
   Calendly) quando alguém quer marcar.
 - **Caixa de entrada, próximos passos**: respostas rápidas (atalho "/"),
-  enviar arquivo/áudio pelo painel, "não lidas", e talvez um tema claro para
+  "não lidas", e talvez um tema claro para
   o portal do cliente (o Daxus Pulse, referência do Lorennzo, é claro; o
   painel hoje é só escuro).
 - **Kanban de leads (mini-CRM).** Ideia do Lorennzo, explicitamente para uma

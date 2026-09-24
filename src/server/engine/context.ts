@@ -134,6 +134,8 @@ export function describeInbound(m: { type: string; text?: string | null; transcr
       return m.transcript ? `[áudio transcrito] ${m.transcript}` : "[o cliente enviou um áudio que não pôde ser transcrito]";
     case "image":
       return `[o cliente enviou uma imagem${m.caption || m.text ? `: "${m.caption ?? m.text}"` : ""}]`;
+    case "video":
+      return `[o cliente enviou um vídeo${m.caption || m.text ? `: "${m.caption ?? m.text}"` : ""}]`;
     case "document":
       return `[o cliente enviou um documento${m.text ? ` "${m.text}"` : ""}]`;
     case "sticker":

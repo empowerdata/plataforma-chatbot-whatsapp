@@ -26,16 +26,15 @@ function normalizePhone(raw: string | null | undefined): string | null {
   return digits.length === 10 || digits.length === 11 ? `55${digits}` : digits;
 }
 
-/** Garante que o cliente informado pertence à conta. */
-async function ensureClient(accountId: string, clientId: string | null): Promise<void> {
-  if (!clientId) return;
+/** Garante que o cliente informado pertence à conta. Todo número tem cliente (ver docs/visao-e-decisoes.md). */
+async function ensureClient(accountId: string, clientId: string): Promise<void> {
   const client = await getClient(accountId, clientId);
   if (!client) throw new Error("Cliente não encontrado.");
 }
 
 const createSchema = z.object({
   label: z.string().trim().min(2, "Dê um nome ao número, por exemplo o nome do negócio."),
-  clientId: z.string().nullable().optional(),
+  clientId: z.string({ message: "Escolha o cliente deste número." }).min(1, "Escolha o cliente deste número."),
   pairingPhone: z.string().optional(),
 });
 
@@ -43,11 +42,10 @@ export async function createNumberAction(input: z.input<typeof createSchema>): P
   try {
     const { account } = await getAccountOrThrow();
     const d = createSchema.parse(input);
-    const clientId = d.clientId || null;
-    await ensureClient(account.id, clientId);
+    await ensureClient(account.id, d.clientId);
     const pairingPhone = normalizePhone(d.pairingPhone);
     if (pairingPhone && pairingPhone.length < 12) throw new Error("Telefone para pareamento incompleto. Use DDD + número, só dígitos.");
-    const row = await createNumber({ accountId: account.id, label: d.label, clientId, pairingPhone });
+    const row = await createNumber({ accountId: account.id, label: d.label, clientId: d.clientId, pairingPhone });
     revalidate(row.id);
     return { error: null, data: { id: row.id } };
   } catch (err) {
@@ -90,7 +88,7 @@ export async function deleteNumberAction(id: string): Promise<Result> {
 
 const updateSchema = z.object({
   label: z.string().trim().min(2, "O nome do número precisa ter pelo menos 2 letras.").optional(),
-  clientId: z.string().nullable().optional(),
+  clientId: z.string().min(1, "Todo número precisa de um cliente.").optional(),
   variables: z.record(z.string().regex(/^[\w.-]+$/, "Nome de variável inválido: use só letras, números, _ ou -, sem espaços."), z.string().max(2000, "Valor de variável muito longo.")).optional(),
   settings: numberSettingsSchema.optional(),
   botEnabled: z.boolean().optional(),
@@ -100,9 +98,8 @@ export async function updateNumberAction(id: string, patch: z.input<typeof updat
   try {
     const { account } = await getAccountOrThrow();
     const d = updateSchema.parse(patch);
-    const clientId = d.clientId === undefined ? undefined : d.clientId || null;
-    if (clientId !== undefined) await ensureClient(account.id, clientId);
-    await updateNumber(account.id, id, { label: d.label, clientId, variables: d.variables, settings: d.settings, botEnabled: d.botEnabled });
+    if (d.clientId !== undefined) await ensureClient(account.id, d.clientId);
+    await updateNumber(account.id, id, { label: d.label, clientId: d.clientId, variables: d.variables, settings: d.settings, botEnabled: d.botEnabled });
     revalidate(id);
     return { error: null };
   } catch (err) {

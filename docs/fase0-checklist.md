@@ -34,6 +34,9 @@ corrigiu três bugs que bloqueavam toda instalação (repositório privado,
 - [ ] Imagem → o bot responde sobre o conteúdo da foto (visão), não só "recebi uma imagem".
 - [ ] Dono responde pelo celular → a conversa mostra "Bot pausado… até HH:MM" e o bot fica em silêncio; "Reativar agora" religa na hora.
 - [ ] Resposta pela caixa de entrada chega no celular do cliente e aparece com o nome de quem enviou (o eco não vira "pelo celular").
+- [ ] Pelo painel: foto, PDF e áudio gravado chegam no celular do cliente (o áudio como mensagem de voz) e aparecem na conversa do painel.
+- [ ] Foto e áudio que o cliente manda abrem no painel (foto amplia, áudio toca com a transcrição); o mesmo para mídia mandada pelo celular do número.
+- [ ] Número novo só é criado com cliente escolhido.
 - [ ] Interruptor "Bot" desligado numa conversa → o bot não responde mais aquele contato até religar.
 - [ ] "Quero falar com atendente" → aviso chega no telefone configurado e a conversa entra em "Aguardando" (barra âmbar na lista).
 - [ ] Horários na tela batem com o horário de Brasília (o servidor roda em UTC).

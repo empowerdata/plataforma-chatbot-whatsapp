@@ -107,6 +107,16 @@ export type DailyStat = {
   tokens_out: number;
 };
 
+/** Prévia da conversa na lista para mensagens de mídia. */
+const PREVIEW_LABELS: Record<string, string> = {
+  image: "📷 Foto",
+  video: "🎬 Vídeo",
+  audio: "🎤 Áudio",
+  document: "📄 Documento",
+  sticker: "Figurinha",
+  location: "📍 Localização",
+};
+
 function toDate(v: unknown): Date {
   return v instanceof Date ? v : new Date(v as string);
 }
@@ -342,7 +352,9 @@ export class TenantStore {
     // tokens, ferramentas usadas) — não fazem parte da conversa visível, então não
     // devem virar a prévia nem contar em message_count.
     if (row && m.sender !== "system") {
-      const preview = (m.text ?? m.transcript ?? `[${m.type ?? "mídia"}]`).slice(0, 120);
+      const label = PREVIEW_LABELS[m.type ?? "text"];
+      const body = m.text ?? m.transcript ?? null;
+      const preview = (label ? (body ? `${label} · ${body}` : label) : body ?? "[mensagem]").slice(0, 120);
       await this.db.query(
         `update chatbot.conversations
            set last_message_at = greatest(last_message_at, $2::timestamptz),
@@ -355,6 +367,19 @@ export class TenantStore {
       );
     }
     return row;
+  }
+
+  async getMessage(id: string): Promise<MessageRow | null> {
+    const rows = await this.db.query<MessageRow>(`select * from chatbot.messages where id = $1`, [id]);
+    return rows[0] ?? null;
+  }
+
+  /** Junta campos ao `meta` de uma mensagem (ex.: o endereço da mídia que chega no eco do envio). */
+  async mergeMessageMeta(numberId: string, externalId: string, patch: Record<string, unknown>): Promise<void> {
+    await this.db.query(
+      `update chatbot.messages set meta = coalesce(meta, '{}'::jsonb) || $3::jsonb where number_id = $1 and external_id = $2`,
+      [numberId, externalId, JSON.stringify(patch)],
+    );
   }
 
   /** As últimas `limit` mensagens da conversa, em ordem cronológica. */

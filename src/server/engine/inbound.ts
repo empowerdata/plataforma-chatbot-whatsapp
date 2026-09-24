@@ -16,6 +16,7 @@ import { runLlmTurn, type ToolHandlers } from "./llm";
 import { sleep, splitBubbles, typingDelayMs } from "./reply";
 import { markSent, wasSentByUs } from "./sent-cache";
 import { cacheImage, takeImage } from "./media-cache";
+import { mediaRefFrom } from "../evolution/media-ref";
 import { applyVariables, type BotConfig } from "@/shared/bot-config";
 import { env } from "../env";
 
@@ -111,8 +112,13 @@ async function handleInbound(ctx: NumberContext, msg: InboundMessage): Promise<v
   const key = `${number.id}:${msg.remoteJid}`;
 
   if (msg.fromMe) {
-    // Mensagem enviada pelo próprio número: se foi o bot (id conhecido), ignora; senão foi um humano no celular.
-    if (wasSentByUs(number.id, msg.externalId)) return;
+    // Mensagem enviada pelo próprio número: se foi o bot ou o painel (id conhecido), ignora; senão foi um humano no celular.
+    if (wasSentByUs(number.id, msg.externalId)) {
+      // Mídia enviada pelo painel: o eco traz o endereço no formato do webhook, o mais confiável para baixar depois.
+      const media = mediaRefFrom(msg.raw);
+      if (media) await store.mergeMessageMeta(number.id, msg.externalId, { media });
+      return;
+    }
     if (await store.messageExists(number.id, msg.externalId)) return;
     const contact = await store.upsertContact({ numberId: number.id, jid: msg.remoteJid, phone: msg.phone });
     const { conversation } = await store.getOrCreateConversation({ numberId: number.id, contactId: contact.id, timeoutHours: eff.timeoutHours });
@@ -124,8 +130,9 @@ async function handleInbound(ctx: NumberContext, msg: InboundMessage): Promise<v
       direction: "out",
       sender: "human",
       type: msg.type,
-      text: msg.text ?? msg.caption ?? null,
+      text: msg.caption ?? msg.text ?? null,
       mediaMime: msg.mimeType ?? null,
+      meta: mediaMeta(msg),
       createdAt: new Date(msg.timestamp * 1000),
     });
     if (eff.pauseHours > 0) await store.pauseContactBot(contact.id, new Date(now.getTime() + eff.pauseHours * 3600_000));
@@ -162,10 +169,10 @@ async function handleInbound(ctx: NumberContext, msg: InboundMessage): Promise<v
     direction: "in",
     sender: "contact",
     type: msg.type,
-    text: msg.text ?? msg.caption ?? (msg.location ? [msg.location.name, msg.location.address].filter(Boolean).join(" — ") : null),
+    text: msg.caption ?? msg.text ?? (msg.location ? [msg.location.name, msg.location.address].filter(Boolean).join(" — ") : null),
     transcript,
     mediaMime: msg.mimeType ?? null,
-    meta: msg.location ? { location: msg.location } : null,
+    meta: msg.location ? { location: msg.location } : mediaMeta(msg),
     createdAt: new Date(msg.timestamp * 1000),
   });
   await store.bumpDailyStat(number.id, now, { messages_in: 1, conversations: created ? 1 : 0, new_contacts: isNewContact ? 1 : 0 });
@@ -194,6 +201,13 @@ async function transcribeInbound(ctx: NumberContext, msg: InboundMessage): Promi
   if (!media) return null;
   const res = await transcribe({ model, audio: Buffer.from(media.base64, "base64") });
   return res.text?.trim() || null;
+}
+
+/** Endereço da mídia (para o painel baixar quando alguém abrir a conversa) e nome do arquivo. */
+function mediaMeta(msg: InboundMessage): Record<string, unknown> | null {
+  const media = mediaRefFrom(msg.raw);
+  if (!media && !msg.fileName) return null;
+  return { ...(media ? { media } : {}), ...(msg.fileName ? { fileName: msg.fileName } : {}) };
 }
 
 /** Baixa a imagem e guarda no cache curto para o turno de resposta poder "ver" (ver media-cache.ts). */
@@ -331,6 +345,15 @@ function asContentParts(content: UserContent): Exclude<UserContent, string> {
   return typeof content === "string" ? [{ type: "text", text: content }] : content;
 }
 
+const SENT_MEDIA: Record<string, string> = { image: "uma imagem", video: "um vídeo", audio: "um áudio", document: "um documento" };
+
+/** Texto de uma mensagem nossa (bot ou equipe) no histórico do modelo; mídia vira uma descrição curta. */
+function describeOutbound(m: MessageRow): string {
+  const label = SENT_MEDIA[m.type];
+  if (!label) return m.text ?? "";
+  return `[enviou ${label}${m.text ? `: "${m.text}"` : ""}]`;
+}
+
 export function toModelMessages(rows: MessageRow[], numberId: string): ModelMessage[] {
   const out: ModelMessage[] = [];
   for (const m of rows) {
@@ -351,7 +374,7 @@ export function toModelMessages(rows: MessageRow[], numberId: string): ModelMess
       if (last && last.role === "user" && typeof last.content === "string") last.content = last.content + "\n" + text;
       else out.push({ role: "user", content: text });
     } else {
-      const text = (m.sender === "human" ? "[atendente humano respondeu] " : "") + (m.text ?? "");
+      const text = (m.sender === "human" ? "[atendente humano respondeu] " : "") + describeOutbound(m);
       if (!text.trim()) continue;
       const last = out[out.length - 1];
       if (last && last.role === "assistant" && typeof last.content === "string") last.content = last.content + "\n\n" + text;

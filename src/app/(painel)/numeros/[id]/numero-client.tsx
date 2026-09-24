@@ -253,7 +253,8 @@ function ClienteCard({ number, clients }: { number: NumberDetail; clients: Clien
   const [pending, startTransition] = React.useTransition();
 
   function onSelect(e: React.ChangeEvent<HTMLSelectElement>) {
-    const clientId = e.target.value || null;
+    const clientId = e.target.value;
+    if (!clientId) return;
     startTransition(async () => {
       const res = await updateNumberAction(number.id, { clientId });
       if (res.error) {
@@ -271,7 +272,11 @@ function ClienteCard({ number, clients }: { number: NumberDetail; clients: Clien
       <div className="p-5">
         <Field label="Cliente">
           <Select value={number.clientId ?? ""} onChange={onSelect} disabled={pending}>
-            <option value="">Nenhum</option>
+            {!number.clientId ? (
+              <option value="" disabled>
+                Escolha o cliente
+              </option>
+            ) : null}
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -279,6 +284,11 @@ function ClienteCard({ number, clients }: { number: NumberDetail; clients: Clien
             ))}
           </Select>
         </Field>
+        {!number.clientId ? (
+          <p className="mt-2 text-xs leading-relaxed text-warning">
+            Este número está sem cliente: as conversas dele não aparecem no portal de ninguém nem no filtro por cliente. Escolha o cliente dono deste WhatsApp.
+          </p>
+        ) : null}
       </div>
     </Card>
   );

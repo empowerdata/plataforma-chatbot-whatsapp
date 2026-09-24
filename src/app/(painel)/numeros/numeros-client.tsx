@@ -73,7 +73,7 @@ export function NumerosClient({ numbers, clients, hasBots }: { numbers: NumeroLi
 
                   <div className="mt-2 truncate text-sm font-semibold text-foreground">{n.label}</div>
                   <div className="mt-0.5 truncate text-xs text-muted">
-                    {n.clientName ?? "sem cliente"} · {n.botName ?? "sem bot"}
+                    {n.clientName ?? <span className="text-warning">sem cliente, escolha um</span>} · {n.botName ?? "sem bot"}
                   </div>
 
                   <div className="mt-3 flex items-center justify-between text-[11px] text-muted">
@@ -104,14 +104,19 @@ function NovoNumeroModal({ onClose, clients }: { onClose: () => void; clients: C
   const router = useRouter();
   const toast = useToast();
   const [label, setLabel] = React.useState("");
-  const [clientId, setClientId] = React.useState("");
+  // Com um cliente só, já vem escolhido.
+  const [clientId, setClientId] = React.useState(clients.length === 1 ? clients[0].id : "");
   const [pairingPhone, setPairingPhone] = React.useState("");
   const [pending, startTransition] = React.useTransition();
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!clientId) {
+      toast.error("Escolha o cliente deste número.");
+      return;
+    }
     startTransition(async () => {
-      const res = await createNumberAction({ label, clientId: clientId || null, pairingPhone: pairingPhone || undefined });
+      const res = await createNumberAction({ label, clientId, pairingPhone: pairingPhone || undefined });
       if (res.error) {
         toast.error(res.error);
         return;
@@ -122,6 +127,21 @@ function NovoNumeroModal({ onClose, clients }: { onClose: () => void; clients: C
     });
   }
 
+  // Todo número pertence a um cliente: sem cliente cadastrado, o primeiro passo é cadastrar.
+  if (!clients.length) {
+    return (
+      <Modal open onClose={onClose} title="Adicionar número" footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button onClick={() => router.push("/clientes")}>Cadastrar cliente</Button>
+        </>
+      }>
+        <p className="text-sm text-foreground">Cadastre o cliente antes do número.</p>
+        <p className="mt-1.5 text-sm text-muted">Cada número de WhatsApp pertence a um cliente (o negócio que você atende). É por ele que o cliente vê as próprias conversas e indicadores, sem misturar com os de outro.</p>
+      </Modal>
+    );
+  }
+
   return (
     <Modal open onClose={onClose} title="Adicionar número" description="Crie a instância do WhatsApp para um cliente." footer={
       <>
@@ -130,18 +150,20 @@ function NovoNumeroModal({ onClose, clients }: { onClose: () => void; clients: C
       </>
     }>
       <form className="space-y-3" onSubmit={submit}>
-        <Field label="Nome do número">
-          <Input autoFocus value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ex.: Pizzaria do João" />
-        </Field>
-        <Field label="Cliente">
-          <Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
-            <option value="">Nenhum</option>
+        <Field label="Cliente" hint="O negócio dono deste WhatsApp. Um número atende um cliente só.">
+          <Select value={clientId} onChange={(e) => setClientId(e.target.value)} required>
+            <option value="" disabled>
+              Escolha o cliente
+            </option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
           </Select>
+        </Field>
+        <Field label="Nome do número">
+          <Input autoFocus value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ex.: Pizzaria do João — atendimento" />
         </Field>
         <Field label="Telefone para pareamento (opcional)" hint="Opcional. Se informar o número do celular do cliente, mostramos um código para digitar no WhatsApp em vez de ler o QR.">
           <Input value={pairingPhone} onChange={(e) => setPairingPhone(e.target.value.replace(/\D/g, ""))} placeholder="Só números, com DDD" />

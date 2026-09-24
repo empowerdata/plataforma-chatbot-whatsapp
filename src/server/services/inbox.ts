@@ -5,11 +5,12 @@ import { getTenantStore, type MessageRow } from "../tenant";
 import type { Contact, Conversation, ConversationListRow } from "../tenant/store";
 import { getEvolutionClient } from "../evolution/nodes";
 import { markSent } from "../engine/sent-cache";
+import { isMediaRef, mediaRefFrom } from "../evolution/media-ref";
 import { getScheduler } from "../engine/scheduler";
 import type { BotConfig } from "@/shared/bot-config";
 import type { NumberSettings } from "@/shared/number-settings";
 import { dayKey, formatDateTime, formatDayLabel, formatListTime, formatNumber, formatPhone, formatRelative, formatTime, initials } from "@/lib/utils";
-import { INBOX_MAX, INBOX_PAGE, type BotState, type ConversationStatus, type InboxConversation, type InboxCounts, type InboxFilters, type InboxListItem, type InboxThreadItem, type InboxView } from "@/components/inbox/types";
+import { INBOX_MAX, INBOX_PAGE, MEDIA_MAX_BYTES, type BotState, type InboxMedia, type ConversationStatus, type InboxConversation, type InboxCounts, type InboxFilters, type InboxListItem, type InboxThreadItem, type InboxView } from "@/components/inbox/types";
 
 /**
  * Caixa de entrada das conversas — um serviço só para o painel da equipe e
@@ -280,6 +281,20 @@ function bubbleBody(m: MessageRow): string {
   }
 }
 
+const MEDIA_KINDS = new Set<string>(["image", "video", "audio", "document", "sticker"]);
+
+/** Mídia que dá para abrir: só quando temos o endereço dela (mensagens de antes desta versão ficam com a etiqueta). */
+function mediaOf(m: MessageRow, meta: Record<string, unknown>): InboxMedia | null {
+  if (!MEDIA_KINDS.has(m.type) || !isMediaRef(meta.media)) return null;
+  return { kind: m.type as InboxMedia["kind"], url: `/api/inbox/media/${m.id}`, fileName: typeof meta.fileName === "string" ? meta.fileName : null };
+}
+
+function captionOf(m: MessageRow, media: InboxMedia): string {
+  const text = (m.text ?? "").trim();
+  if (media.kind === "audio" || media.kind === "sticker") return "";
+  return text && text !== media.fileName ? text : "";
+}
+
 /** Linha discreta com o custo/modelo da resposta do bot (só a equipe vê). */
 function costLine(m: MessageRow, meta: Record<string, unknown>): string | null {
   if (meta.simulated === true) return "resposta simulada (sem chave da OpenAI)";
@@ -312,7 +327,19 @@ function buildThread(messages: MessageRow[], staff: boolean): InboxThreadItem[] 
       lastDay = key;
     }
     const author = m.sender === "human" ? (typeof meta.author === "string" && meta.author ? meta.author : meta.via === "painel" ? "Equipe" : "Pelo celular") : null;
-    const item: Extract<InboxThreadItem, { kind: "message" }> = { kind: "message", id: m.id, sender: m.sender, author, body: bubbleBody(m), time: formatTime(at), meta: null, offHours: meta.offHours === true };
+    const media = mediaOf(m, meta);
+    const item: Extract<InboxThreadItem, { kind: "message" }> = {
+      kind: "message",
+      id: m.id,
+      sender: m.sender,
+      author,
+      body: media ? captionOf(m, media) : bubbleBody(m),
+      media,
+      transcript: media?.kind === "audio" ? m.transcript?.trim() || null : null,
+      time: formatTime(at),
+      meta: null,
+      offHours: meta.offHours === true,
+    };
     items.push(item);
     if (m.sender === "bot") lastBot = item;
   }
@@ -370,26 +397,107 @@ export async function sendInboxMessage(scope: InboxScope, id: string, text: stri
   const body = text.trim();
   if (!body) throw new Error("Escreva uma mensagem.");
   if (body.length > 4000) throw new Error("Mensagem longa demais (máximo de 4.000 caracteres).");
-  const { store, conversation, contact, num } = await load(scope, id);
+  const loaded = await load(scope, id);
+  const { num, contact } = loaded;
+  assertCanSend(loaded);
+  const res = await (await evolutionFor(num)).sendText(num.instanceName, { number: contact.phone ?? contact.jid.split("@")[0], text: body });
+  await afterTeamSend(loaded, res.messageId, { type: "text", text: body, meta: { via: "painel", author } });
+}
+
+export type OutgoingFile = { data: Buffer; mime: string; name: string };
+
+/** Tipo de mensagem do WhatsApp para o arquivo. Formatos que o WhatsApp não mostra como foto/vídeo vão como documento. */
+function mediaKindFor(mime: string): "image" | "video" | "audio" | "document" {
+  if (/^image\/(jpeg|png|webp)$/.test(mime)) return "image";
+  if (/^video\/(mp4|3gpp)$/.test(mime)) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  return "document";
+}
+
+/**
+ * Arquivo ou áudio enviado pelo painel. Mesma regra da resposta em texto (o bot
+ * pausa). Áudio sempre vai como mensagem de voz — é como a pessoa espera
+ * receber no WhatsApp. O arquivo não fica guardado aqui: só o endereço para
+ * buscá-lo de volta no WhatsApp (ver media-ref.ts).
+ */
+export async function sendInboxMedia(scope: InboxScope, id: string, file: OutgoingFile, opts: { caption?: string }, author: string): Promise<void> {
+  if (!file.data.length) throw new Error("Arquivo vazio.");
+  if (file.data.length > MEDIA_MAX_BYTES) throw new Error("Arquivo grande demais: o limite é 16 MB.");
+  const caption = opts.caption?.trim().slice(0, 1000) || undefined;
+  const loaded = await load(scope, id);
+  const { num, contact } = loaded;
+  assertCanSend(loaded);
+
+  const client = await evolutionFor(num);
+  const number = contact.phone ?? contact.jid.split("@")[0];
+  const base64 = file.data.toString("base64");
+  const kind = mediaKindFor(file.mime);
+  const res =
+    kind === "audio"
+      ? await client.sendAudio(num.instanceName, { number, audio: base64 })
+      : await client.sendMedia(num.instanceName, { number, mediaType: kind, media: base64, mimeType: file.mime, caption, fileName: kind === "document" ? file.name : undefined });
+  const media = mediaRefFrom(res.raw);
+  await afterTeamSend(loaded, res.messageId, {
+    type: kind,
+    // Documento sem legenda: o nome do arquivo vira o texto (busca e prévia da lista).
+    text: caption ?? (kind === "document" ? file.name : null),
+    mediaMime: file.mime,
+    meta: { via: "painel", author, ...(media ? { media } : {}), ...(kind === "document" ? { fileName: file.name } : {}) },
+  });
+}
+
+function assertCanSend({ num, contact }: Loaded): void {
   if (num.status !== "open") throw new Error("O WhatsApp deste número está desconectado. Reconecte para enviar mensagens.");
   if (contact.is_blocked) throw new Error("Este contato está bloqueado.");
+}
 
+async function evolutionFor(num: ScopeNumber) {
   const db = await getDb();
   const [node] = await db.select().from(schema.evolutionNodes).where(eq(schema.evolutionNodes.id, num.nodeId)).limit(1);
   if (!node) throw new Error("Servidor do WhatsApp não encontrado.");
-  const res = await getEvolutionClient(node).sendText(num.instanceName, { number: contact.phone ?? contact.jid.split("@")[0], text: body });
-  // Sem isto, o eco da própria mensagem (fromMe) seria lido como "respondeu pelo celular".
-  markSent(num.id, res.messageId);
-  getScheduler().cancel(`${num.id}:${contact.jid}`);
+  return getEvolutionClient(node);
+}
 
+/** Tudo o que acontece depois de a equipe enviar algo pelo painel: registrar, pausar o bot, reabrir. */
+async function afterTeamSend({ store, conversation, contact, num }: Loaded, messageId: string, msg: { type: string; text: string | null; mediaMime?: string; meta: Record<string, unknown> }): Promise<void> {
+  // Sem isto, o eco da própria mensagem (fromMe) seria lido como "respondeu pelo celular".
+  markSent(num.id, messageId);
+  getScheduler().cancel(`${num.id}:${contact.jid}`);
   const now = new Date();
-  await store.insertMessage({ numberId: num.id, conversationId: conversation.id, contactId: contact.id, externalId: res.messageId || null, direction: "out", sender: "human", type: "text", text: body, meta: { via: "painel", author } });
+  await store.insertMessage({ numberId: num.id, conversationId: conversation.id, contactId: contact.id, externalId: messageId || null, direction: "out", sender: "human", type: msg.type, text: msg.text, mediaMime: msg.mediaMime ?? null, meta: msg.meta });
   await store.bumpDailyStat(num.id, now, { messages_out: 1, human_messages: 1 });
   const pauseHours = pauseHoursFor(num);
   if (pauseHours > 0 && !contact.bot_disabled) await store.pauseContactBot(contact.id, new Date(now.getTime() + pauseHours * 3600_000));
   await store.setConversationStatus(conversation.id, "human", false, "Respondido pelo painel");
   if (conversation.resolved_at) await store.setConversationResolved(conversation.id, false);
+  const db = await getDb();
   await db.update(schema.numbers).set({ lastMessageAt: now }).where(eq(schema.numbers.id, num.id));
+}
+
+/**
+ * Baixa do WhatsApp (via Evolution) a mídia de uma mensagem, conferindo o
+ * escopo pela conversa: um cliente não baixa arquivo de conversa de outro.
+ * Mídia muito antiga pode não existir mais no WhatsApp — aí "não encontrada".
+ */
+export async function getInboxMedia(scope: InboxScope, messageId: string): Promise<{ data: Buffer; mime: string; fileName: string | null }> {
+  if (!UUID_RE.test(messageId)) throw new MediaNotFound();
+  const store = await getTenantStore(scope.accountId);
+  const message = await store.getMessage(messageId);
+  if (!message) throw new MediaNotFound();
+  const { num } = await load(scope, message.conversation_id).catch(() => {
+    throw new MediaNotFound();
+  });
+  const meta = metaOf(message);
+  if (!isMediaRef(meta.media)) throw new MediaNotFound();
+  const got = await (await evolutionFor(num)).getMedia(num.instanceName, meta.media, { audioAsMp4: message.type === "audio" }).catch(() => null);
+  if (!got?.base64) throw new MediaNotFound();
+  return { data: Buffer.from(got.base64, "base64"), mime: got.mimeType || message.media_mime || "application/octet-stream", fileName: typeof meta.fileName === "string" ? meta.fileName : null };
+}
+
+export class MediaNotFound extends Error {
+  constructor() {
+    super("Mídia não encontrada.");
+  }
 }
 
 export async function saveInboxNotes(scope: InboxScope, id: string, notes: string): Promise<void> {

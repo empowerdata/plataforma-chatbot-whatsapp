@@ -20,5 +20,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // As rotas de mídia da caixa de entrada ficam de fora: o proxy do Next copia o corpo
+  // da requisição com limite de 10 MB (arquivos vão até 16 MB). Elas validam a sessão sozinhas.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/inbox/|.*\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };
