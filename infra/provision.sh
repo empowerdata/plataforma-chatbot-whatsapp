@@ -3,7 +3,7 @@
 # Instala tudo num VPS Ubuntu do zero, com um comando só.
 #
 #   ssh root@SEU-IP
-#   curl -fsSL https://raw.githubusercontent.com/SEU-USUARIO/SEU-REPO/main/infra/provision.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/empowerdata/plataforma-chatbot-whatsapp/main/infra/provision.sh | bash
 #
 # Faz perguntas simples (nome do negócio, e-mail, senha) e cuida do resto
 # sozinho: instala o Docker, gera todas as senhas e chaves, sobe o painel,
@@ -13,7 +13,7 @@
 set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-/opt/chatbot}"
-REPO_URL="${REPO_URL:-https://github.com/SEU-USUARIO/SEU-REPO.git}"
+REPO_URL="${REPO_URL:-https://github.com/empowerdata/plataforma-chatbot-whatsapp.git}"
 TTY=/dev/tty
 
 # --------------------------------------------------------------- utilidades

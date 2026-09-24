@@ -13,7 +13,7 @@ cria a conta do próprio dono da instalação sozinho (ver `bootstrapCore` em
 
 ```bash
 ssh root@SEU-IP
-curl -fsSL https://raw.githubusercontent.com/SEU-USUARIO/SEU-REPO/main/infra/provision.sh | bash
+curl -fsSL https://raw.githubusercontent.com/empowerdata/plataforma-chatbot-whatsapp/main/infra/provision.sh | bash
 ```
 
 O script (`infra/provision.sh`) faz tudo sozinho: instala Docker, pergunta
