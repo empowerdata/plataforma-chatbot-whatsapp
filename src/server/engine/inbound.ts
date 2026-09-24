@@ -286,7 +286,7 @@ export async function respondToContact(input: RespondInput): Promise<void> {
       temperature: config.model.temperature,
       maxOutputTokens: config.model.maxOutputTokens,
       categoryOptions: config.categorization.enabled ? config.categorization.options : [],
-      mock: { config, knowledge: knowledge.map((k) => k.content), lastUserText: queryText, isFirstTurn },
+      mock: { config, knowledge: knowledge.map((k) => k.content), lastUserText: queryText, isFirstTurn, variables: number.variables },
     });
 
     const bubbles = splitBubbles(result.text, config.behavior.maxBubbleChars);

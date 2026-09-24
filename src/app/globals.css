@@ -121,6 +121,25 @@ input[type="number"]::-webkit-outer-spin-button {
   opacity: 0.4;
 }
 
+/*
+  `color-scheme: dark` no :root nem sempre é suficiente para o Chrome/Edge no
+  Windows escurecerem sozinhos o popup nativo do <select> — sem isto, as
+  opções saem com fundo branco do sistema e texto claro (herdado do tema),
+  quase ilegível. Fundo/cor explícitos em <option> resolvem de forma
+  confiável entre navegadores; reforça também o color-scheme no próprio
+  elemento (não só herdado do :root).
+*/
+select,
+datalist {
+  color-scheme: dark;
+}
+
+select option,
+datalist option {
+  background-color: var(--color-surface-2);
+  color: var(--color-foreground);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

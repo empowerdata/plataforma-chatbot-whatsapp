@@ -89,7 +89,7 @@ export async function runPlaygroundTurn(input: {
     temperature: config.model.temperature,
     maxOutputTokens: config.model.maxOutputTokens,
     categoryOptions: config.categorization.enabled ? config.categorization.options : [],
-    mock: { config, knowledge: knowledge.map((k) => k.content), lastUserText: input.userText, isFirstTurn: input.history.length === 0 },
+    mock: { config, knowledge: knowledge.map((k) => k.content), lastUserText: input.userText, isFirstTurn: input.history.length === 0, variables: input.variables },
   });
 
   return {

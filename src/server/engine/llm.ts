@@ -1,7 +1,7 @@
 import "server-only";
 import { generateText, isStepCount, tool, type LanguageModel, type ModelMessage, type ToolSet } from "ai";
 import { z } from "zod";
-import type { BotConfig } from "@/shared/bot-config";
+import { applyVariables, type BotConfig } from "@/shared/bot-config";
 
 /**
  * Uma "rodada" do modelo: recebe sistema + histórico + ferramentas, devolve
@@ -30,7 +30,7 @@ export type LlmTurnInput = {
   /** Categorias válidas para a ferramenta categorizar_conversa, se o handler estiver presente. */
   categoryOptions?: string[];
   /** Só usado pelo backend simulado. */
-  mock?: { config: BotConfig; knowledge: string[]; lastUserText: string; isFirstTurn: boolean };
+  mock?: { config: BotConfig; knowledge: string[]; lastUserText: string; isFirstTurn: boolean; variables?: Record<string, string> };
 };
 
 export type LlmTurnResult = {
@@ -144,6 +144,11 @@ async function runMockTurn(input: LlmTurnInput, started: number): Promise<LlmTur
     reply = cfg.behavior.greeting;
   } else {
     reply = cfg?.behavior.unknownAnswer || "Entendi! Vou confirmar essa informação com a equipe e já te retorno. Posso ajudar com mais alguma coisa?";
+  }
+
+  if (cfg) {
+    const vars = { nome_empresa: cfg.identity.businessName, nome_assistente: cfg.identity.assistantName, ...m?.variables };
+    reply = applyVariables(reply, vars);
   }
 
   await new Promise((r) => setTimeout(r, 150));

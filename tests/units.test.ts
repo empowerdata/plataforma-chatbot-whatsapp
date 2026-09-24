@@ -15,6 +15,7 @@ import { chunkText, parseFaq, serializeFaq, faqToChunks, htmlToText } from "@/se
 import { parseWebhook, buildTextUpsertPayload } from "@/server/evolution/webhook-parser";
 import { toModelMessages } from "@/server/engine/inbound";
 import { cacheImage } from "@/server/engine/media-cache";
+import { runLlmTurn } from "@/server/engine/llm";
 import type { MessageRow } from "@/server/tenant/store";
 
 describe("reply: bolhas de WhatsApp", () => {
@@ -238,5 +239,37 @@ describe("engine: imagem (visão)", () => {
     toModelMessages([row({ type: "image", external_id: "wa-img-2", text: "" })], "num-1");
     const second = toModelMessages([row({ type: "image", external_id: "wa-img-2", text: "" })], "num-1");
     expect(second[0].content).toBe("[o cliente enviou uma imagem]");
+  });
+});
+
+describe("engine: variáveis no backend simulado (sem chave OpenAI)", () => {
+  it("substitui {{nome_empresa}} na saudação, igual ao modo real", async () => {
+    const config = defaultBotConfig({ identity: { businessName: "Pizzaria Bella Massa" }, behavior: { greeting: "Olá! Bem-vindo à {{nome_empresa}}." } });
+    const result = await runLlmTurn({
+      model: null,
+      modelName: "simulado",
+      system: "",
+      messages: [],
+      handlers: {},
+      temperature: 0.5,
+      maxOutputTokens: 300,
+      mock: { config, knowledge: [], lastUserText: "boa noite", isFirstTurn: true },
+    });
+    expect(result.text).toBe("Olá! Bem-vindo à Pizzaria Bella Massa.");
+  });
+
+  it("também substitui variáveis do número (ex.: {{cidade}}) quando passadas em mock.variables", async () => {
+    const config = defaultBotConfig({ identity: { businessName: "Bella Massa" }, behavior: { greeting: "Oi! Aqui é a {{nome_empresa}} de {{cidade}}." } });
+    const result = await runLlmTurn({
+      model: null,
+      modelName: "simulado",
+      system: "",
+      messages: [],
+      handlers: {},
+      temperature: 0.5,
+      maxOutputTokens: 300,
+      mock: { config, knowledge: [], lastUserText: "oi", isFirstTurn: true, variables: { cidade: "São Paulo" } },
+    });
+    expect(result.text).toBe("Oi! Aqui é a Bella Massa de São Paulo.");
   });
 });
