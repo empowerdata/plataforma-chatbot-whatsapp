@@ -6,14 +6,15 @@ import { Button } from "@/components/ui/primitives";
 export function Topbar({
   userName,
   userEmail,
-  role,
+  isPlatformAdmin,
   actingAs,
   onLogout,
   onStopActing,
 }: {
   userName: string;
   userEmail: string;
-  role: "super_admin" | "member";
+  /** true só para quem administra várias contas hospedadas (não é o caso do aluno numa instalação própria). */
+  isPlatformAdmin: boolean;
   actingAs: { accountName: string } | null;
   onLogout: () => Promise<void>;
   onStopActing: () => Promise<void>;
@@ -38,7 +39,7 @@ export function Topbar({
       <div className="flex items-center gap-3">
         <div className="text-right leading-tight">
           <div className="text-sm font-medium">{userName}</div>
-          <div className="text-[11px] text-muted">{role === "super_admin" ? "Administrador da plataforma" : userEmail}</div>
+          <div className="text-[11px] text-muted">{isPlatformAdmin ? "Administrador da plataforma" : userEmail}</div>
         </div>
         <form action={onLogout}>
           <Button variant="ghost" size="icon" type="submit" title="Sair">

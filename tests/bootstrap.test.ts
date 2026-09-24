@@ -52,6 +52,12 @@ describe("bootstrap de instalação de conta única (produção)", () => {
     expect(users[0].email).toBe("dono@negocio.com");
     expect(users[0].role).toBe("super_admin");
     expect(users[0].accountId).toBeTruthy();
+    // Mesma condição usada em src/app/(painel)/layout.tsx para decidir se
+    // mostra o menu "Plataforma" (multi-conta): numa instalação de conta
+    // única, quem instalou NUNCA deve ser tratado como "administrador da
+    // plataforma" — só quem administra várias contas hospedadas por fora.
+    const isPlatformAdmin = users[0].role === "super_admin" && !users[0].accountId;
+    expect(isPlatformAdmin).toBe(false);
 
     const accounts = await db.select().from(schema.accounts);
     expect(accounts).toHaveLength(1);

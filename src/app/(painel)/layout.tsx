@@ -18,6 +18,12 @@ export default async function PainelLayout({ children }: { children: React.React
   const db = await ensureReady();
   const user = await requireUser();
 
+  // "Administrador da plataforma" de verdade só é quem NÃO tem conta própria
+  // vinculada — ou seja, gerencia várias contas hospedadas por fora. Numa
+  // instalação de conta única, quem instalou é super_admin mas já tem a
+  // própria conta (bootstrapCore) e nunca deveria ver essa camada extra.
+  const isPlatformAdmin = user.role === "super_admin" && !user.accountId;
+
   let account: typeof schema.accounts.$inferSelect | null = null;
   let actingAs = false;
   if (user.role === "super_admin") {
@@ -49,7 +55,7 @@ export default async function PainelLayout({ children }: { children: React.React
     if (env.devSimulator) items.push({ href: "/dev/simulador", label: "Simulador", icon: "FlaskConical" });
     sections.push({ title: account.name, items });
   }
-  if (user.role === "super_admin") {
+  if (isPlatformAdmin) {
     sections.push({
       title: "Plataforma",
       items: [
@@ -66,7 +72,7 @@ export default async function PainelLayout({ children }: { children: React.React
     <div className="flex h-screen overflow-hidden">
       <Sidebar productName={productName} sections={sections} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar userName={user.name} userEmail={user.email} role={user.role} actingAs={actingAs && account ? { accountName: account.name } : null} onLogout={logoutAction} onStopActing={stopActingAction} />
+        <Topbar userName={user.name} userEmail={user.email} isPlatformAdmin={isPlatformAdmin} actingAs={actingAs && account ? { accountName: account.name } : null} onLogout={logoutAction} onStopActing={stopActingAction} />
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-6xl px-6 py-6">{children}</div>
         </main>
