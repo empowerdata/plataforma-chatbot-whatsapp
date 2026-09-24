@@ -110,8 +110,19 @@ mantido porque não atrapalha e ainda serve para o ambiente de desenvolvimento
 mostrar múltiplas contas de demonstração. Mas o fluxo real é: **uma
 instalação, um aluno, uma conta.** No primeiro boot em produção, o sistema
 cria essa conta sozinho e já vincula o usuário administrador a ela
-(`bootstrapCore` em `src/server/db/bootstrap.ts`), então o aluno nunca
-precisa ver a tela de "Admin → Contas".
+(`bootstrapCore` em `src/server/db/bootstrap.ts`).
+
+Dentro dessa conta, o aluno cadastra em **Clientes** cada negócio que ele
+atende (a pizzaria, o consultório, a barbearia — quantos quiser), cada um com
+seus próprios números e bots, todos no mesmo Supabase da conta. Não existe
+"uma conta por cliente do aluno" — só existe uma conta por aluno.
+
+O menu "Plataforma" (Contas/Servidores/Eventos) só aparece para quem de fato
+administra várias contas hospedadas por fora (`isPlatformAdmin` em
+`(painel)/layout.tsx`, calculado como `super_admin` sem conta própria
+vinculada) — um aluno numa instalação de conta única nunca vê essa camada.
+Isso já é assim no código, não só na intenção: foi um ajuste feito depois que
+o próprio Lorennzo testou a interface e achou as duas camadas confusas.
 
 ### O Evolution (WhatsApp) nunca fica público
 
@@ -176,6 +187,7 @@ reverificar depois de mexer no código relacionado).
 | Recurso | Testes automatizados | Verificado no navegador |
 |---|---|---|
 | Login, sessão, contas, "entrar como" | sim | sim |
+| Menu "Plataforma" escondido para conta única | sim | sim |
 | Números de WhatsApp (QR, pareamento) | via simulador | sim (Evolution simulada) |
 | Studio do bot (todas as abas) | parcial | sim |
 | Playground (teste sem WhatsApp) | sim | sim |
