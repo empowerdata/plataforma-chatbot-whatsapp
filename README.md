@@ -1,6 +1,6 @@
-# Plataforma de chatbots WhatsApp (white label)
+# Plataforma de chatbots WhatsApp (white label, self-hosted pelo aluno)
 
-Painel multi-conta onde alunos gerenciam números de WhatsApp com bots de IA para pequenos negócios. A Evolution API é hospedada pela plataforma; cada aluno usa o **próprio Supabase** (conversas) e a **própria chave OpenAI** (inteligência).
+Kit que um aluno da Daxus instala no **próprio servidor** para gerenciar números de WhatsApp com bots de IA para pequenos negócios. Cada instalação é isolada, com o **próprio Supabase** (conversas), a **própria chave OpenAI** (inteligência) e o próprio Evolution API — a Daxus não hospeda nem opera nada disso. Ver `docs/visao-e-decisoes.md` para o porquê deste modelo.
 
 ## Rodar em desenvolvimento (sem instalar nada além do Node)
 
@@ -32,13 +32,18 @@ npx drizzle-kit generate   # gerar migration após mudar src/server/db/schema.ts
 
 ## Documentação
 
-- `docs/arquitetura.md` — peças, fluxo da mensagem, decisões.
+- `docs/visao-e-decisoes.md` — **leia primeiro**: modelo de negócio, o histórico de decisões e o porquê, restrições que não devem ser violadas.
+- `docs/arquitetura.md` — peças técnicas, fluxo da mensagem.
 - `docs/convencoes.md` — como escrever telas e código aqui.
 - `docs/operacao.md` — subir e manter o servidor (VPS, Docker, backups).
-- `docs/onboarding-aluno.md` — o que o aluno faz, passo a passo.
+- `docs/instalar-vps.md` / `docs/deploy-render.md` — guias de instalação para o aluno (sem jargão técnico).
+- `docs/onboarding-aluno.md` — o que o aluno faz depois de instalado, passo a passo.
 - `docs/fase0-checklist.md` — o que validar quando o VPS e o chip chegarem.
-- `docs/roadmap.md` — fases.
+- `docs/roadmap.md` — fases do projeto.
 
 ## Produção
 
-`infra/docker-compose.yml` sobe tudo num VPS: Evolution API, Postgres, Redis, painel e Caddy (HTTPS automático). Passo a passo em `docs/operacao.md`.
+Cada aluno instala a própria cópia. Dois caminhos, nenhum operado pela Daxus:
+
+- **VPS (recomendado, mais barato)**: `infra/provision.sh` — um comando, sobe tudo (Evolution API, Postgres, Redis, painel, Caddy com HTTPS automático). Guia: `docs/instalar-vps.md`.
+- **Render (sem terminal, mais caro)**: `render.yaml` — instalação de um clique. Guia: `docs/deploy-render.md`.
