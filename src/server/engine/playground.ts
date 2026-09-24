@@ -77,7 +77,8 @@ export async function runPlaygroundTurn(input: {
     };
   }
 
-  const system = buildSystemPrompt({ config, variables: input.variables ?? {}, contactName: "Cliente de teste", knowledge: knowledge.map((k) => k.content), tools: Object.keys(handlers) });
+  // Sem nome no teste: com um nome fictício ("Cliente de teste") o bot chamava quem testa por ele.
+  const system = buildSystemPrompt({ config, variables: input.variables ?? {}, contactName: null, knowledge: knowledge.map((k) => k.content), tools: Object.keys(handlers) });
   const messages: ModelMessage[] = [...input.history.map((m) => ({ role: m.role, content: m.text }) as ModelMessage), { role: "user", content: input.userText }];
 
   const result = await runLlmTurn({

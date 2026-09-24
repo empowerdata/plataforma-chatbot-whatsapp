@@ -9,7 +9,7 @@ import { getEvolutionClient } from "../evolution/nodes";
 import type { EvolutionClient, InboundMessage, WebhookEvent } from "../evolution/types";
 import { getAccountAi, type AccountAi } from "../ai/provider";
 import { logEvent } from "../services/events";
-import { buildSystemPrompt, describeInbound } from "./context";
+import { buildSystemPrompt, describeInbound, firstNameOf, mentionsName } from "./context";
 import { isOpenNow } from "./hours";
 import { getScheduler } from "./scheduler";
 import { runLlmTurn, type ToolHandlers } from "./llm";
@@ -273,7 +273,9 @@ export async function respondToContact(input: RespondInput): Promise<void> {
 
     const handlers = buildHandlers({ ctx, store, client, contact: { id: contact.id, name: contactName, phone: input.phone }, conversationId: conversation.id, eff, knowledgeCount: knowledge.length });
     const tools = Object.keys(handlers);
-    const system = buildSystemPrompt({ config, variables: number.variables, contactName, knowledge: knowledge.map((k) => k.content), tools });
+    const firstName = firstNameOf(contactName);
+    const nameAlreadyUsed = !!firstName && recent.some((m) => m.sender === "bot" && mentionsName(m.text, firstName));
+    const system = buildSystemPrompt({ config, variables: number.variables, contactName, nameAlreadyUsed, knowledge: knowledge.map((k) => k.content), tools });
     const messages = toModelMessages(recent, number.id);
     const isFirstTurn = !recent.some((m) => m.sender !== "contact");
 

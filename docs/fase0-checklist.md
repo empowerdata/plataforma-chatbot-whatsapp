@@ -37,6 +37,7 @@ corrigiu três bugs que bloqueavam toda instalação (repositório privado,
 - [ ] Interruptor "Bot" desligado numa conversa → o bot não responde mais aquele contato até religar.
 - [ ] "Quero falar com atendente" → aviso chega no telefone configurado e a conversa entra em "Precisa de você".
 - [ ] Horários na tela batem com o horário de Brasília (o servidor roda em UTC).
+- [ ] Numa conversa de 5+ mensagens, o bot chama a pessoa pelo nome no máximo uma vez e não abre toda resposta com "Entendi"/"Obrigado".
 - [ ] Desconectar pelo painel → status "Desconectado"; reconectar gera QR novo.
 - [ ] Excluir número remove a instância na Evolution (`fetchInstances` não lista mais).
 - [ ] Evolution reiniciada (`docker compose restart evolution`) → instância volta sozinha sem novo QR.

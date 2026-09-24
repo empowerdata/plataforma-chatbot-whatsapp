@@ -227,6 +227,14 @@ mais difícil para quem não é técnico. Hoje:
   (`/var/backups/chatbot`). Vale orientar no curso a copiar para fora (rclone
   → Google Drive). Com a retenção de 30 dias, o volume é pequeno.
 
+Eu (Claude) apliquei essa mudança sem perguntar antes, o que não deveria ter
+feito numa premissa documentada. O Lorennzo avaliou os riscos no mesmo dia e
+**confirmou: banco do servidor como padrão, Supabase opcional.** O risco
+real que sobra é perder o histórico de conversas se a VPS inteira for
+perdida — que já levaria junto o painel, os bots e a sessão do WhatsApp de
+qualquer forma. A ideia dele para diminuir a perda: um resumo por contato
+que sobrevive à limpeza (ver backlog).
+
 ### Evolution API é via WhatsApp Web (Baileys), não API oficial
 
 A ponte com o WhatsApp usa o protocolo não oficial (como o WhatsApp Web),
@@ -349,6 +357,7 @@ reverificar depois de mexer no código relacionado).
 | Interruptor do bot por conversa + estado explicado (pausado/desligado/motivo) | sim | sim |
 | Banco das conversas no próprio servidor (sem Supabase) | parcial (fallback testado em dev) | não — validar no VPS depois do `git pull` (serviço `dados`) |
 | Horários no fuso de Brasília (servidor em UTC) | não | sim |
+| Bot não repete o nome da pessoa a cada mensagem | sim (instrução do prompt) | não — só dá para ver com a chave real da OpenAI |
 | Modais cobrindo a tela toda (antes cortados dentro da página) | não | sim |
 | Instalador do VPS (`infra/provision.sh`) | lógica isolada testada | **sim** — Hostinger (2026-09-24); achou e corrigiu 3 bugs que bloqueavam 100% das instalações (ver abaixo) |
 | `render.yaml` (instalação no Render) | validado contra o schema oficial | **sim**, uma vez, ao vivo (custo real medido) |
@@ -361,6 +370,33 @@ reverificar depois de mexer no código relacionado).
   `dados`). É o próximo passo antes de qualquer divulgação.
 - **Termo de uso.** Precisa deixar explícito o que está na tabela de
   responsabilidades acima: software entregue como está, operação é do aluno.
+- **Resumo por contato** (ideia do Lorennzo, 2026-09-24). Como as conversas
+  somem depois de 30 dias, guardar um resumo curto por contato — o que já
+  pediu, comprou, reclamou, preferências — atualizado sozinho quando cada
+  conversa termina, e que sobrevive à limpeza. Serve para a equipe (na
+  ficha do contato) e para o bot (lembrar o cliente quando ele volta).
+  Avaliação: vale a pena, esforço médio, custo de IA desprezível (uma
+  chamada do modelo mini por conversa encerrada). Cuidados: não guardar
+  dado sensível (em clínica, nada de detalhe de saúde — LGPD), permitir
+  editar/apagar, e apagar o resumo de quem não fala há muito tempo (ex.: 12
+  meses). A limpeza de hoje apaga o contato junto com a última conversa;
+  isso muda. O campo `conversations.summary` já existe e nunca foi usado.
+- **Google Agenda** (ideia do Lorennzo, 2026-09-24, pensando em clínicas,
+  salões, personal trainers). O bot consultaria horários livres e marcaria
+  na agenda do cliente final, em vez de só coletar a preferência e passar
+  para a equipe. Avaliação: muito valor de venda para esses nichos, mas é a
+  maior peça até agora. O difícil é conectar o Google num produto
+  auto-hospedado: o "entrar com Google" (OAuth) exige um app registrado com
+  o endereço de cada instalação — ou a Daxus operaria um app central
+  (contraria "zero infraestrutura da Daxus"), ou cada aluno configuraria o
+  Google Cloud (fricção pior que a do Supabase). Caminho viável: **conta de
+  serviço** — o aluno cria uma vez no Google Cloud (ensinado no curso) e
+  cada cliente final só compartilha a agenda com aquele e-mail, como
+  compartilha com um colega. Fases sugeridas: (1) consultar e sugerir
+  horários; (2) marcar com confirmação; (3) remarcar/cancelar e lembretes.
+  Atalho sem integração, se quiser algo já: o bot manda o link de
+  agendamento do cliente (páginas de agendamento do Google Agenda,
+  Calendly) quando alguém quer marcar.
 - **Caixa de entrada, próximos passos**: respostas rápidas (atalho "/"),
   enviar arquivo/áudio pelo painel, "não lidas", e talvez um tema claro para
   o portal do cliente (o Daxus Pulse, referência do Lorennzo, é claro; o

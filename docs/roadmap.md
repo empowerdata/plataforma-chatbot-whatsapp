@@ -59,7 +59,9 @@ qualquer divulgação para alunos.
 
 ## Fase 2 — qualidade
 
-- Resumo automático da conversa (campo `summary`, ainda não usado).
+- **Resumo por contato**, atualizado sozinho quando a conversa termina e
+  guardado além da limpeza de 30 dias (ficha do contato + contexto do bot).
+  Ver avaliação em `docs/visao-e-decisoes.md`.
 - Custo estimado por conversa/número no painel (tokens × preço do modelo).
 - Alertas por e-mail/WhatsApp quando um número cai (hoje só evento no painel).
 - Versões do bot com histórico e "voltar para versão".
@@ -69,6 +71,10 @@ qualquer divulgação para alunos.
 
 - Caixa de entrada, próximos passos: respostas rápidas (atalho "/"), enviar
   arquivo/áudio pelo painel, "não lidas", talvez tema claro no portal.
+- **Google Agenda** para clínicas, salões e personal trainers: consultar
+  horários livres e marcar pelo bot, via conta de serviço do Google (o
+  cliente final só compartilha a agenda). Ver avaliação em
+  `docs/visao-e-decisoes.md`.
 - **Kanban de leads (mini-CRM)**, usando a categorização de conversas e o
   status aberto/finalizado já construídos como base — cada categoria pode
   virar uma coluna, sem retrabalho de schema.

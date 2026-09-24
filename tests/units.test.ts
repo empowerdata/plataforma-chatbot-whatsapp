@@ -9,7 +9,7 @@ process.env.SEED_DEMO = "0";
 import { splitBubbles, toWhatsAppText, typingDelayMs } from "@/server/engine/reply";
 import { isOpenNow, describeHours } from "@/server/engine/hours";
 import { MemoryScheduler } from "@/server/engine/scheduler";
-import { buildSystemPrompt } from "@/server/engine/context";
+import { buildSystemPrompt, firstNameOf, mentionsName } from "@/server/engine/context";
 import { applyVariables, botVariables, defaultBotConfig, getTemplate } from "@/shared/bot-config";
 import { chunkText, parseFaq, serializeFaq, faqToChunks, htmlToText } from "@/server/ai/text";
 import { parseWebhook, buildTextUpsertPayload } from "@/server/evolution/webhook-parser";
@@ -129,6 +129,27 @@ describe("bot-config e prompt", () => {
     expect(prompt).toContain("[1] Pizza mussarela R$ 45");
     expect(prompt).toContain("chamar_atendente");
     expect(prompt).toContain("Rafael");
+  });
+
+  it("nome do contato: usa uma vez só, e avisa quando já usou", () => {
+    expect(firstNameOf("Lorennzo Martins")).toBe("Lorennzo");
+    expect(firstNameOf("~lorennzo 🚀")).toBe("Lorennzo");
+    expect(firstNameOf("🍕")).toBeNull();
+    expect(firstNameOf("J.")).toBeNull();
+    expect(firstNameOf(null)).toBeNull();
+
+    expect(mentionsName("Oi, Lorennzo! Tudo bem?", "Lorennzo")).toBe(true);
+    expect(mentionsName("Perfeito, LORENNZO.", "Lorennzo")).toBe(true);
+    expect(mentionsName("Obrigado, José!", "Jose")).toBe(true); // sem ligar para acento
+    expect(mentionsName("Lorennzones é outra palavra", "Lorennzo")).toBe(false);
+    expect(mentionsName("Posso ajudar com mais alguma coisa?", "Lorennzo")).toBe(false);
+
+    const cfg = defaultBotConfig({ identity: { businessName: "Bella Massa" } });
+    const first = buildSystemPrompt({ config: cfg, variables: {}, knowledge: [], tools: [], contactName: "Lorennzo Martins" });
+    expect(first).toContain("Pode chamá-lo pelo primeiro nome uma única vez");
+    const later = buildSystemPrompt({ config: cfg, variables: {}, knowledge: [], tools: [], contactName: "Lorennzo Martins", nameAlreadyUsed: true });
+    expect(later).toContain("Você já o chamou pelo nome nesta conversa: não use o nome dele de novo");
+    expect(later).not.toContain("Martins");
   });
 });
 
