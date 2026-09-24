@@ -30,6 +30,7 @@ Regras:
 ## UI
 
 - Componentes base em `src/components/ui/primitives.tsx` (Button, Input, Textarea, Select, Field, Switch, Badge, StatusDot, Card, CardHeader, PageHeader, EmptyState, Spinner, CopyBox), `dialog.tsx` (Modal, DialogsProvider/useDialogs), `toast.tsx` (useToast), `tabs.tsx` (Tabs).
+- Modais com formulário: quem usa monta o componente só enquanto está aberto (`{aberto ? <MeuModal /> : null}`, com `key={item.id}` quando edita um item) e o estado começa direto das props. Nada de `useEffect` para "limpar" ou "preencher" o formulário ao abrir: o lint (`react-hooks/set-state-in-effect`) barra, e o efeito ainda sobrescrevia o que a pessoa digitava quando a página se atualizava. Para buscar dados num efeito, a busca devolve o resultado e o `setState` fica no `.then`.
 - **Nunca usar `window.confirm/prompt/alert`.** Use `const { confirmDialog, promptDialog, alertDialog } = useDialogs()`.
 - Feedback de ação: `useToast().success("...")` / `.error("...")`.
 - Ícones: `lucide-react`.
@@ -43,8 +44,9 @@ Regras:
 ## Verificação antes de dizer "pronto"
 
 1. `npx tsc --noEmit` sem erros.
-2. `npm run build` passa (o build pega erros de RSC que o tsc não pega).
-3. Abrir no navegador e testar de verdade (dev: `npm run dev`, login `demo@local.test` / `demo123`).
+2. `npm run lint` sem erros (as regras de hooks do React 19 pegam bugs de estado de verdade).
+3. `npm run build` passa (o build pega erros de RSC que o tsc não pega).
+4. Abrir no navegador e testar de verdade (dev: `npm run dev`, login `demo@local.test` / `demo123`).
 
 Gráficos: os componentes de `src/components/indicators/charts.tsx` (`ChartCard`, `ColumnChart`, `RankBars`). Uma cor por gráfico (`chart-1`; `chart-muted` para "sem categoria"/"outras"), nunca uma cor por categoria; texto nas cores de texto, nunca na da série; grade em linha fina contínua; todo gráfico com a versão em tabela (`table` do `ChartCard`).
 

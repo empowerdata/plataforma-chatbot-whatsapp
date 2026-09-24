@@ -79,12 +79,13 @@ export function BotsClient({ bots }: { bots: BotCardData[] }) {
         </div>
       )}
 
-      <NewBotModal open={modalOpen} onClose={() => setModalOpen(false)} onCreated={(id) => router.push(`/bots/${id}`)} />
+      {/* Montado só enquanto aberto: cada abertura começa do zero. */}
+      {modalOpen ? <NewBotModal onClose={() => setModalOpen(false)} onCreated={(id) => router.push(`/bots/${id}`)} /> : null}
     </div>
   );
 }
 
-function NewBotModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
+function NewBotModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const toast = useToast();
   const [templateKey, setTemplateKey] = React.useState<string>("generico");
   const [businessName, setBusinessName] = React.useState("");
@@ -92,18 +93,8 @@ function NewBotModal({ open, onClose, onCreated }: { open: boolean; onClose: () 
   const [nameTouched, setNameTouched] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
 
-  React.useEffect(() => {
-    if (!open) {
-      setTemplateKey("generico");
-      setBusinessName("");
-      setName("");
-      setNameTouched(false);
-    }
-  }, [open]);
-
-  React.useEffect(() => {
-    if (!nameTouched) setName(businessName.trim() ? `Atendente da ${businessName.trim()}` : "");
-  }, [businessName, nameTouched]);
+  // Até a pessoa mexer no nome, ele acompanha o nome do negócio.
+  const botName = nameTouched ? name : businessName.trim() ? `Atendente da ${businessName.trim()}` : "";
 
   async function submit() {
     if (submitting) return;
@@ -111,13 +102,13 @@ function NewBotModal({ open, onClose, onCreated }: { open: boolean; onClose: () 
       toast.error("Informe o nome do negócio.");
       return;
     }
-    if (name.trim().length < 2) {
+    if (botName.trim().length < 2) {
       toast.error("Dê um nome ao bot (pelo menos 2 letras).");
       return;
     }
     setSubmitting(true);
     try {
-      const res = await createBotAction({ name, templateKey, businessName });
+      const res = await createBotAction({ name: botName, templateKey, businessName });
       if (res.error) {
         toast.error(res.error);
         return;
@@ -131,7 +122,7 @@ function NewBotModal({ open, onClose, onCreated }: { open: boolean; onClose: () 
 
   return (
     <Modal
-      open={open}
+      open
       onClose={onClose}
       title="Novo bot"
       description="Escolha um modelo de partida e dê um nome ao bot."
@@ -181,7 +172,7 @@ function NewBotModal({ open, onClose, onCreated }: { open: boolean; onClose: () 
         </Field>
         <Field label="Nome do bot" hint="Como o bot aparece para vocês no painel.">
           <Input
-            value={name}
+            value={botName}
             onChange={(e) => {
               setName(e.target.value);
               setNameTouched(true);

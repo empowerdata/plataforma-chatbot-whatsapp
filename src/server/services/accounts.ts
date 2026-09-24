@@ -41,7 +41,7 @@ export async function getAccount(id: string) {
 
 async function uniqueSlug(base: string): Promise<string> {
   const db = await getDb();
-  let slug = slugify(base) || "conta";
+  const slug = slugify(base) || "conta";
   for (let i = 0; i < 50; i++) {
     const candidate = i === 0 ? slug : `${slug}-${i + 1}`;
     const [exists] = await db.select({ id: schema.accounts.id }).from(schema.accounts).where(eq(schema.accounts.slug, candidate)).limit(1);

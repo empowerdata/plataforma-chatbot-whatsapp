@@ -94,26 +94,19 @@ export function NumerosClient({ numbers, clients, hasBots }: { numbers: NumeroLi
         </div>
       )}
 
-      <NovoNumeroModal open={open} onClose={() => setOpen(false)} clients={clients} />
+      {/* Montado só enquanto aberto: cada abertura começa do zero. */}
+      {open ? <NovoNumeroModal onClose={() => setOpen(false)} clients={clients} /> : null}
     </div>
   );
 }
 
-function NovoNumeroModal({ open, onClose, clients }: { open: boolean; onClose: () => void; clients: ClientOpt[] }) {
+function NovoNumeroModal({ onClose, clients }: { onClose: () => void; clients: ClientOpt[] }) {
   const router = useRouter();
   const toast = useToast();
   const [label, setLabel] = React.useState("");
   const [clientId, setClientId] = React.useState("");
   const [pairingPhone, setPairingPhone] = React.useState("");
   const [pending, startTransition] = React.useTransition();
-
-  React.useEffect(() => {
-    if (open) {
-      setLabel("");
-      setClientId("");
-      setPairingPhone("");
-    }
-  }, [open]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -130,7 +123,7 @@ function NovoNumeroModal({ open, onClose, clients }: { open: boolean; onClose: (
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Adicionar número" description="Crie a instância do WhatsApp para um cliente." footer={
+    <Modal open onClose={onClose} title="Adicionar número" description="Crie a instância do WhatsApp para um cliente." footer={
       <>
         <Button variant="ghost" onClick={onClose}>Cancelar</Button>
         <Button onClick={submit} loading={pending}>Criar número</Button>

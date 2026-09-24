@@ -12,9 +12,11 @@ import { Button, Input } from "./primitives";
  * "bloco de contenção" de um `position: fixed` — sem o portal o modal ficava
  * preso (e cortado) dentro da área da página em vez de cobrir a tela.
  */
+const noopSubscribe = () => () => {};
+
 export function Modal({ open, onClose, title, description, children, footer, size = "md", className }: { open: boolean; onClose: () => void; title?: React.ReactNode; description?: React.ReactNode; children?: React.ReactNode; footer?: React.ReactNode; size?: "sm" | "md" | "lg" | "xl"; className?: string }) {
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
+  // O portal precisa do document: falso no servidor, verdadeiro no navegador.
+  const mounted = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
   React.useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {

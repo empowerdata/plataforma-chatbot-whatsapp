@@ -161,27 +161,32 @@ export function ServidoresClient({ nodes }: { nodes: NodeItem[] }) {
         </div>
       )}
 
-      <CreateNodeModal
-        open={createOpen}
-        onClose={() => {
-          setCreateOpen(false);
-          router.refresh();
-        }}
-      />
-      <EditNodeModal
-        node={editingNode}
-        onClose={() => {
-          setEditingId(null);
-          router.refresh();
-        }}
-      />
+      {/* Montados só enquanto abertos (e por servidor, via key): cada abertura começa com o formulário no estado certo. */}
+      {createOpen ? (
+        <CreateNodeModal
+          onClose={() => {
+            setCreateOpen(false);
+            router.refresh();
+          }}
+        />
+      ) : null}
+      {editingNode ? (
+        <EditNodeModal
+          key={editingNode.id}
+          node={editingNode}
+          onClose={() => {
+            setEditingId(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
 // ---------------------------------------------------------------- Adicionar servidor
 
-function CreateNodeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function CreateNodeModal({ onClose }: { onClose: () => void }) {
   const toast = useToast();
   const [name, setName] = React.useState("");
   const [baseUrl, setBaseUrl] = React.useState("");
@@ -190,17 +195,6 @@ function CreateNodeModal({ open, onClose }: { open: boolean; onClose: () => void
   const [notes, setNotes] = React.useState("");
   const [pending, startTransition] = React.useTransition();
   const [health, setHealth] = React.useState<{ ok: boolean; version?: string; error?: string } | null>(null);
-
-  React.useEffect(() => {
-    if (open) {
-      setName("");
-      setBaseUrl("");
-      setApiKey("");
-      setCapacity("40");
-      setNotes("");
-      setHealth(null);
-    }
-  }, [open]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -219,7 +213,7 @@ function CreateNodeModal({ open, onClose }: { open: boolean; onClose: () => void
 
   return (
     <Modal
-      open={open}
+      open
       onClose={onClose}
       title="Adicionar servidor"
       description={health ? undefined : "Cadastre um servidor Evolution API real."}
@@ -272,28 +266,17 @@ function CreateNodeModal({ open, onClose }: { open: boolean; onClose: () => void
 
 // ---------------------------------------------------------------- Editar servidor
 
-function EditNodeModal({ node, onClose }: { node: NodeItem | null; onClose: () => void }) {
+function EditNodeModal({ node, onClose }: { node: NodeItem; onClose: () => void }) {
   const toast = useToast();
-  const [name, setName] = React.useState("");
-  const [baseUrl, setBaseUrl] = React.useState("");
+  const [name, setName] = React.useState(node.name);
+  const [baseUrl, setBaseUrl] = React.useState(node.baseUrl);
   const [apiKey, setApiKey] = React.useState("");
-  const [capacity, setCapacity] = React.useState("0");
-  const [notes, setNotes] = React.useState("");
+  const [capacity, setCapacity] = React.useState(String(node.capacity));
+  const [notes, setNotes] = React.useState(node.notes ?? "");
   const [pending, startTransition] = React.useTransition();
-
-  React.useEffect(() => {
-    if (node) {
-      setName(node.name);
-      setBaseUrl(node.baseUrl);
-      setApiKey("");
-      setCapacity(String(node.capacity));
-      setNotes(node.notes ?? "");
-    }
-  }, [node]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!node) return;
     startTransition(async () => {
       const res = await updateNodeAction(node.id, { name, baseUrl, apiKey: apiKey.trim() ? apiKey : undefined, capacity: Number(capacity), notes });
       if (res.error) {
@@ -307,7 +290,7 @@ function EditNodeModal({ node, onClose }: { node: NodeItem | null; onClose: () =
 
   return (
     <Modal
-      open={!!node}
+      open
       onClose={onClose}
       title="Editar servidor"
       size="md"

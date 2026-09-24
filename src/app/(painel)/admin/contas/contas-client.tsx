@@ -142,28 +142,33 @@ export function ContasClient({ accounts }: { accounts: AccountItem[] }) {
         </div>
       )}
 
-      <CreateAccountModal
-        open={createOpen}
-        onClose={() => {
-          setCreateOpen(false);
-          router.refresh();
-        }}
-      />
-      <EditAccountModal
-        account={editingAccount}
-        onClose={() => {
-          setEditingId(null);
-          router.refresh();
-        }}
-      />
-      <UsersModal account={usersAccount} onClose={() => setUsersId(null)} />
+      {/* Montados só enquanto abertos (e por conta, via key): cada abertura começa com o formulário no estado certo. */}
+      {createOpen ? (
+        <CreateAccountModal
+          onClose={() => {
+            setCreateOpen(false);
+            router.refresh();
+          }}
+        />
+      ) : null}
+      {editingAccount ? (
+        <EditAccountModal
+          key={editingAccount.id}
+          account={editingAccount}
+          onClose={() => {
+            setEditingId(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
+      {usersAccount ? <UsersModal key={usersAccount.id} account={usersAccount} onClose={() => setUsersId(null)} /> : null}
     </div>
   );
 }
 
 // ---------------------------------------------------------------- Nova conta
 
-function CreateAccountModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function CreateAccountModal({ onClose }: { onClose: () => void }) {
   const toast = useToast();
   const [name, setName] = React.useState("");
   const [adminName, setAdminName] = React.useState("");
@@ -173,18 +178,6 @@ function CreateAccountModal({ open, onClose }: { open: boolean; onClose: () => v
   const [notes, setNotes] = React.useState("");
   const [pending, startTransition] = React.useTransition();
   const [result, setResult] = React.useState<{ setupLink: string; email: string } | null>(null);
-
-  React.useEffect(() => {
-    if (open) {
-      setName("");
-      setAdminName("");
-      setAdminEmail("");
-      setIncludedNumbers("3");
-      setMaxNumbers("0");
-      setNotes("");
-      setResult(null);
-    }
-  }, [open]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -210,7 +203,7 @@ function CreateAccountModal({ open, onClose }: { open: boolean; onClose: () => v
 
   return (
     <Modal
-      open={open}
+      open
       onClose={onClose}
       title="Nova conta"
       description={result ? undefined : "Crie a conta do aluno e o acesso do responsável."}
@@ -269,30 +262,18 @@ function CreateAccountModal({ open, onClose }: { open: boolean; onClose: () => v
 
 // ---------------------------------------------------------------- Editar conta
 
-function EditAccountModal({ account, onClose }: { account: AccountItem | null; onClose: () => void }) {
+function EditAccountModal({ account, onClose }: { account: AccountItem; onClose: () => void }) {
   const toast = useToast();
-  const [name, setName] = React.useState("");
-  const [status, setStatus] = React.useState<"active" | "suspended">("active");
-  const [includedNumbers, setIncludedNumbers] = React.useState("3");
-  const [maxNumbers, setMaxNumbers] = React.useState("0");
-  const [notes, setNotes] = React.useState("");
-  const [productName, setProductName] = React.useState("");
+  const [name, setName] = React.useState(account.name);
+  const [status, setStatus] = React.useState<"active" | "suspended">(account.status);
+  const [includedNumbers, setIncludedNumbers] = React.useState(String(account.includedNumbers));
+  const [maxNumbers, setMaxNumbers] = React.useState(String(account.maxNumbers));
+  const [notes, setNotes] = React.useState(account.notes ?? "");
+  const [productName, setProductName] = React.useState(account.productName);
   const [pending, startTransition] = React.useTransition();
-
-  React.useEffect(() => {
-    if (account) {
-      setName(account.name);
-      setStatus(account.status);
-      setIncludedNumbers(String(account.includedNumbers));
-      setMaxNumbers(String(account.maxNumbers));
-      setNotes(account.notes ?? "");
-      setProductName(account.productName);
-    }
-  }, [account]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!account) return;
     startTransition(async () => {
       const res = await updateAccountAction({
         id: account.id,
@@ -314,7 +295,7 @@ function EditAccountModal({ account, onClose }: { account: AccountItem | null; o
 
   return (
     <Modal
-      open={!!account}
+      open
       onClose={onClose}
       title="Editar conta"
       size="md"
@@ -360,7 +341,7 @@ function EditAccountModal({ account, onClose }: { account: AccountItem | null; o
 
 // ---------------------------------------------------------------- Usuários
 
-function UsersModal({ account, onClose }: { account: AccountItem | null; onClose: () => void }) {
+function UsersModal({ account, onClose }: { account: AccountItem; onClose: () => void }) {
   const router = useRouter();
   const toast = useToast();
   const { confirmDialog } = useDialogs();
@@ -372,34 +353,30 @@ function UsersModal({ account, onClose }: { account: AccountItem | null; onClose
   const [newLink, setNewLink] = React.useState<string | null>(null);
   const [addPending, startAddTransition] = React.useTransition();
 
-  const load = React.useCallback(
-    async (accountId: string) => {
-      setUsers(null);
+  const fetchUsers = React.useCallback(
+    async (accountId: string): Promise<AccountUserItem[]> => {
       const res = await listAccountUsersAction(accountId);
-      if (res.error) {
-        toast.error(res.error);
-        setUsers([]);
-        return;
-      }
-      setUsers(res.data ?? []);
+      if (res.error) toast.error(res.error);
+      return res.data ?? [];
     },
     [toast],
   );
 
+  // Recarrega mantendo a lista atual na tela até a nova chegar (o spinner é só da primeira carga).
+  const load = async (accountId: string) => setUsers(await fetchUsers(accountId));
+
   React.useEffect(() => {
-    if (account) {
-      setLinks({});
-      setNewName("");
-      setNewEmail("");
-      setNewLink(null);
-      load(account.id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account?.id]);
+    let alive = true;
+    void fetchUsers(account.id).then((list) => {
+      if (alive) setUsers(list);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [account.id, fetchUsers]);
 
   function addUser(e: React.FormEvent) {
     e.preventDefault();
-    if (!account) return;
     startAddTransition(async () => {
       const res = await createUserAction({ accountId: account.id, name: newName, email: newEmail });
       if (res.error) {
@@ -442,73 +419,71 @@ function UsersModal({ account, onClose }: { account: AccountItem | null; onClose
       return;
     }
     toast.success(user.isActive ? "Usuário desativado." : "Usuário reativado.");
-    if (account) load(account.id);
+    void load(account.id);
     router.refresh();
   }
 
   return (
-    <Modal open={!!account} onClose={onClose} title="Usuários" description={account?.name} size="lg">
-      {!account ? null : (
-        <div className="space-y-4">
-          {users === null ? (
-            <div className="flex items-center justify-center py-8">
-              <Spinner />
-            </div>
-          ) : users.length === 0 ? (
-            <p className="py-2 text-sm text-muted">Nenhum usuário ainda.</p>
-          ) : (
-            <div className="divide-y divide-border rounded-md border border-border">
-              {users.map((u) => (
-                <div key={u.id} className="px-3 py-2.5">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                    <div className="min-w-[160px] flex-1">
-                      <div className="text-sm text-foreground">{u.name}</div>
-                      <div className="text-xs text-muted">{u.email}</div>
-                    </div>
-                    <Badge tone={u.isActive ? "success" : "neutral"}>{u.isActive ? "ativo" : "inativo"}</Badge>
-                    <span className="text-[11px] text-muted" title={u.lastLoginAt ? formatDateTime(u.lastLoginAt) : undefined}>
-                      {u.lastLoginAt ? `entrou ${formatRelative(u.lastLoginAt)}` : "nunca entrou"}
-                    </span>
-                    <div className="ml-auto flex items-center gap-1.5">
-                      <Button size="sm" variant="outline" loading={busyUserId === u.id} onClick={() => handleNewLink(u.id)}>
-                        Novo link de senha
-                      </Button>
-                      <Button size="sm" variant={u.isActive ? "danger" : "secondary"} loading={busyUserId === u.id} onClick={() => handleToggleActive(u)}>
-                        {u.isActive ? "Desativar" : "Ativar"}
-                      </Button>
-                    </div>
-                  </div>
-                  {links[u.id] ? (
-                    <div className="mt-2">
-                      <CopyBox label="Link para definir senha" value={links[u.id]} />
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="border-t border-border pt-3">
-            <div className="mb-2 text-xs font-medium text-muted">Adicionar usuário</div>
-            <form className="flex flex-wrap items-end gap-2" onSubmit={addUser}>
-              <Field label="Nome" className="min-w-[140px] flex-1">
-                <Input value={newName} onChange={(e) => setNewName(e.target.value)} />
-              </Field>
-              <Field label="E-mail" className="min-w-[180px] flex-1">
-                <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
-              </Field>
-              <Button type="submit" loading={addPending}>
-                <UserPlus className="h-4 w-4" /> Adicionar
-              </Button>
-            </form>
-            {newLink ? (
-              <div className="mt-2">
-                <CopyBox label="Link para definir senha" value={newLink} />
-              </div>
-            ) : null}
+    <Modal open onClose={onClose} title="Usuários" description={account.name} size="lg">
+      <div className="space-y-4">
+        {users === null ? (
+          <div className="flex items-center justify-center py-8">
+            <Spinner />
           </div>
+        ) : users.length === 0 ? (
+          <p className="py-2 text-sm text-muted">Nenhum usuário ainda.</p>
+        ) : (
+          <div className="divide-y divide-border rounded-md border border-border">
+            {users.map((u) => (
+              <div key={u.id} className="px-3 py-2.5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <div className="min-w-[160px] flex-1">
+                    <div className="text-sm text-foreground">{u.name}</div>
+                    <div className="text-xs text-muted">{u.email}</div>
+                  </div>
+                  <Badge tone={u.isActive ? "success" : "neutral"}>{u.isActive ? "ativo" : "inativo"}</Badge>
+                  <span className="text-[11px] text-muted" title={u.lastLoginAt ? formatDateTime(u.lastLoginAt) : undefined}>
+                    {u.lastLoginAt ? `entrou ${formatRelative(u.lastLoginAt)}` : "nunca entrou"}
+                  </span>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <Button size="sm" variant="outline" loading={busyUserId === u.id} onClick={() => handleNewLink(u.id)}>
+                      Novo link de senha
+                    </Button>
+                    <Button size="sm" variant={u.isActive ? "danger" : "secondary"} loading={busyUserId === u.id} onClick={() => handleToggleActive(u)}>
+                      {u.isActive ? "Desativar" : "Ativar"}
+                    </Button>
+                  </div>
+                </div>
+                {links[u.id] ? (
+                  <div className="mt-2">
+                    <CopyBox label="Link para definir senha" value={links[u.id]} />
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="border-t border-border pt-3">
+          <div className="mb-2 text-xs font-medium text-muted">Adicionar usuário</div>
+          <form className="flex flex-wrap items-end gap-2" onSubmit={addUser}>
+            <Field label="Nome" className="min-w-[140px] flex-1">
+              <Input value={newName} onChange={(e) => setNewName(e.target.value)} />
+            </Field>
+            <Field label="E-mail" className="min-w-[180px] flex-1">
+              <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+            </Field>
+            <Button type="submit" loading={addPending}>
+              <UserPlus className="h-4 w-4" /> Adicionar
+            </Button>
+          </form>
+          {newLink ? (
+            <div className="mt-2">
+              <CopyBox label="Link para definir senha" value={newLink} />
+            </div>
+          ) : null}
         </div>
-      )}
+      </div>
     </Modal>
   );
 }

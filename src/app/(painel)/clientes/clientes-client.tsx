@@ -31,7 +31,9 @@ export function ClientesClient({ clients }: { clients: ClienteItem[] }) {
   const toast = useToast();
   const { confirmDialog } = useDialogs();
   const [editing, setEditing] = React.useState<ClienteItem | null | undefined>(undefined);
-  const [portalFor, setPortalFor] = React.useState<ClienteItem | null>(null);
+  // Guarda só o id: o cliente vem sempre da lista atual, que o router.refresh() renova depois de cada ação no portal.
+  const [portalForId, setPortalForId] = React.useState<string | null>(null);
+  const portalFor = clients.find((c) => c.id === portalForId) ?? null;
   const [busyId, setBusyId] = React.useState<string | null>(null);
 
   async function onDelete(client: ClienteItem) {
@@ -128,7 +130,7 @@ export function ClientesClient({ clients }: { clients: ClienteItem[] }) {
 
               <button
                 type="button"
-                onClick={() => setPortalFor(c)}
+                onClick={() => setPortalForId(c.id)}
                 className="mt-2 flex w-full items-center gap-1.5 rounded-md border border-dashed border-border-strong px-2 py-1.5 text-xs text-muted transition-colors hover:border-accent/50 hover:text-foreground"
               >
                 <KeyRound className="h-3.5 w-3.5 shrink-0" />
@@ -141,31 +143,23 @@ export function ClientesClient({ clients }: { clients: ClienteItem[] }) {
         </div>
       )}
 
-      <ClienteModal open={editing !== undefined} client={editing ?? null} onClose={() => setEditing(undefined)} />
-      <PortalAccessModal client={portalFor} onClose={() => setPortalFor(null)} />
+      {/* Montados só enquanto abertos (e por cliente, via key): cada abertura começa com o formulário no estado certo. */}
+      {editing !== undefined ? <ClienteModal key={editing?.id ?? "novo"} client={editing} onClose={() => setEditing(undefined)} /> : null}
+      {portalFor ? <PortalAccessModal key={portalFor.id} client={portalFor} onClose={() => setPortalForId(null)} /> : null}
     </div>
   );
 }
 
-function ClienteModal({ open, client, onClose }: { open: boolean; client: ClienteItem | null; onClose: () => void }) {
+/** `client` nulo = cadastro novo. */
+function ClienteModal({ client, onClose }: { client: ClienteItem | null; onClose: () => void }) {
   const toast = useToast();
-  const [name, setName] = React.useState("");
-  const [segment, setSegment] = React.useState("");
-  const [contactName, setContactName] = React.useState("");
-  const [contactPhone, setContactPhone] = React.useState("");
-  const [city, setCity] = React.useState("");
-  const [notes, setNotes] = React.useState("");
+  const [name, setName] = React.useState(client?.name ?? "");
+  const [segment, setSegment] = React.useState(client?.segment ?? "");
+  const [contactName, setContactName] = React.useState(client?.contactName ?? "");
+  const [contactPhone, setContactPhone] = React.useState(client?.contactPhone ?? "");
+  const [city, setCity] = React.useState(client?.city ?? "");
+  const [notes, setNotes] = React.useState(client?.notes ?? "");
   const [pending, startTransition] = React.useTransition();
-
-  React.useEffect(() => {
-    if (!open) return;
-    setName(client?.name ?? "");
-    setSegment(client?.segment ?? "");
-    setContactName(client?.contactName ?? "");
-    setContactPhone(client?.contactPhone ?? "");
-    setCity(client?.city ?? "");
-    setNotes(client?.notes ?? "");
-  }, [open, client]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -190,7 +184,7 @@ function ClienteModal({ open, client, onClose }: { open: boolean; client: Client
 
   return (
     <Modal
-      open={open}
+      open
       onClose={onClose}
       title={client ? "Editar cliente" : "Adicionar cliente"}
       footer={
@@ -233,7 +227,7 @@ function ClienteModal({ open, client, onClose }: { open: boolean; client: Client
   );
 }
 
-function PortalAccessModal({ client, onClose }: { client: ClienteItem | null; onClose: () => void }) {
+function PortalAccessModal({ client, onClose }: { client: ClienteItem; onClose: () => void }) {
   const toast = useToast();
   const router = useRouter();
   const [name, setName] = React.useState("");
@@ -241,13 +235,6 @@ function PortalAccessModal({ client, onClose }: { client: ClienteItem | null; on
   const [link, setLink] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
-  React.useEffect(() => {
-    setName("");
-    setEmail("");
-    setLink(null);
-  }, [client?.id]);
-
-  if (!client) return null;
   const portalUser = client.portalUser;
 
   const create = (e: React.FormEvent) => {
@@ -290,7 +277,7 @@ function PortalAccessModal({ client, onClose }: { client: ClienteItem | null; on
   };
 
   return (
-    <Modal open={!!client} onClose={onClose} title={`Portal de ${client.name}`} footer={<Button variant="ghost" onClick={onClose}>Fechar</Button>}>
+    <Modal open onClose={onClose} title={`Portal de ${client.name}`} footer={<Button variant="ghost" onClick={onClose}>Fechar</Button>}>
       <div className="space-y-4">
         <p className="text-xs text-muted">
           Um acesso próprio e restrito: {client.name} vê só as conversas e o desempenho dele, nunca os outros clientes da sua conta.

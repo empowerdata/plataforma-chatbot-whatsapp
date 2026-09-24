@@ -175,15 +175,16 @@ export function NumeroClient({
         <EventosCard events={events} />
       </div>
 
-      <ConexaoModal
-        open={connOpen}
-        onClose={() => {
-          setConnOpen(false);
-          router.refresh();
-        }}
-        numberId={number.id}
-        simulated={number.nodeKind === "fake"}
-      />
+      {connOpen ? (
+        <ConexaoModal
+          onClose={() => {
+            setConnOpen(false);
+            router.refresh();
+          }}
+          numberId={number.id}
+          simulated={number.nodeKind === "fake"}
+        />
+      ) : null}
     </div>
   );
 }

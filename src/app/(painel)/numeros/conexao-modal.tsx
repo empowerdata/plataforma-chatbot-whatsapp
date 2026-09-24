@@ -15,37 +15,45 @@ type ConnectionInfo = {
   lastError: string | null;
 };
 
-/** Modal de QR/código de pareamento. Consulta GET /api/numeros/[id]/conexao a cada 3s enquanto aberto. */
-export function ConexaoModal({ open, onClose, numberId, simulated }: { open: boolean; onClose: () => void; numberId: string; simulated?: boolean }) {
+/**
+ * Modal de QR/código de pareamento. Quem usa monta só enquanto está aberto;
+ * consulta GET /api/numeros/[id]/conexao a cada 3s.
+ */
+export function ConexaoModal({ onClose, numberId, simulated }: { onClose: () => void; numberId: string; simulated?: boolean }) {
   const [info, setInfo] = React.useState<ConnectionInfo | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
 
-  const load = React.useCallback(
-    async (refresh?: boolean) => {
+  const fetchInfo = React.useCallback(
+    async (refresh?: boolean): Promise<ConnectionInfo | null> => {
       try {
         const res = await fetch(`/api/numeros/${numberId}/conexao${refresh ? "?refresh=1" : ""}`, { cache: "no-store" });
-        if (res.ok) setInfo(await res.json());
+        return res.ok ? ((await res.json()) as ConnectionInfo) : null;
       } catch {
-        // silencioso: a próxima tentativa de polling tenta de novo
+        return null; // silencioso: a próxima tentativa de polling tenta de novo
       }
     },
     [numberId],
   );
 
   React.useEffect(() => {
-    if (!open) {
-      setInfo(null);
-      return;
-    }
-    void load();
-    const t = setInterval(() => void load(), 3000);
-    return () => clearInterval(t);
-  }, [open, load]);
+    let alive = true;
+    const tick = () =>
+      void fetchInfo().then((next) => {
+        if (alive && next) setInfo(next);
+      });
+    tick();
+    const t = setInterval(tick, 3000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [fetchInfo]);
 
   async function gerarNovoQr() {
     setRefreshing(true);
     try {
-      await load(true);
+      const next = await fetchInfo(true);
+      if (next) setInfo(next);
     } finally {
       setRefreshing(false);
     }
@@ -54,7 +62,7 @@ export function ConexaoModal({ open, onClose, numberId, simulated }: { open: boo
   const connected = info?.status === "open";
 
   return (
-    <Modal open={open} onClose={onClose} title="Conectar WhatsApp" size="sm">
+    <Modal open onClose={onClose} title="Conectar WhatsApp" size="sm">
       <div className="flex flex-col items-center gap-4 py-1 text-center">
         {connected ? (
           <>

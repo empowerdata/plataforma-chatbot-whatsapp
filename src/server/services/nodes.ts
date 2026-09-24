@@ -1,5 +1,5 @@
 import "server-only";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb, schema } from "../db";
 import type { EvolutionNode } from "../db/schema";
 import { encryptSecret } from "../crypto";

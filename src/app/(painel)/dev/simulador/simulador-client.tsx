@@ -25,17 +25,30 @@ export function SimuladorClient({ numbers }: { numbers: NumberOpt[] }) {
   const listRef = React.useRef<HTMLDivElement>(null);
   const number = numbers.find((n) => n.id === numberId);
 
-  const load = React.useCallback(async () => {
-    if (!numberId || !phone) return;
+  const fetchSnap = React.useCallback(async (): Promise<Snapshot | null> => {
+    if (!numberId || !phone) return null;
     const res = await fetch(`/api/dev/simulador?numberId=${numberId}&phone=${encodeURIComponent(phone)}`, { cache: "no-store" });
-    if (res.ok) setSnap(await res.json());
+    return res.ok ? ((await res.json()) as Snapshot) : null;
   }, [numberId, phone]);
 
+  const load = async () => {
+    const next = await fetchSnap();
+    if (next) setSnap(next);
+  };
+
   React.useEffect(() => {
-    void load();
-    const t = setInterval(load, 2000);
-    return () => clearInterval(t);
-  }, [load]);
+    let alive = true;
+    const tick = () =>
+      void fetchSnap().then((next) => {
+        if (alive && next) setSnap(next);
+      });
+    tick();
+    const t = setInterval(tick, 2000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [fetchSnap]);
 
   React.useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
