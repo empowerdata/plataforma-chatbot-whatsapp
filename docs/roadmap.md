@@ -72,9 +72,9 @@ qualquer divulgação para alunos.
 - Caixa de entrada, próximos passos: respostas rápidas (atalho "/"), enviar
   arquivo/áudio pelo painel, "não lidas", talvez tema claro no portal.
 - **Google Agenda** para clínicas, salões e personal trainers: consultar
-  horários livres e marcar pelo bot, via conta de serviço do Google (o
-  cliente final só compartilha a agenda). Ver avaliação em
-  `docs/visao-e-decisoes.md`.
+  horários livres e marcar pelo bot. O próprio cliente final clica em
+  "Conectar com Google"; o aluno só registra o app do Google uma vez. Ver
+  avaliação e ressalvas em `docs/visao-e-decisoes.md`.
 - **Kanban de leads (mini-CRM)**, usando a categorização de conversas e o
   status aberto/finalizado já construídos como base — cada categoria pode
   virar uma coluna, sem retrabalho de schema.

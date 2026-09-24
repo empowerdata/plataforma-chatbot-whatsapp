@@ -389,10 +389,19 @@ reverificar depois de mexer no código relacionado).
   auto-hospedado: o "entrar com Google" (OAuth) exige um app registrado com
   o endereço de cada instalação — ou a Daxus operaria um app central
   (contraria "zero infraestrutura da Daxus"), ou cada aluno configuraria o
-  Google Cloud (fricção pior que a do Supabase). Caminho viável: **conta de
-  serviço** — o aluno cria uma vez no Google Cloud (ensinado no curso) e
-  cada cliente final só compartilha a agenda com aquele e-mail, como
-  compartilha com um colega. Fases sugeridas: (1) consultar e sugerir
+  Google Cloud. Caminho preferido, depois da conversa com o Lorennzo (ele
+  queria que o próprio cliente autenticasse, como nos conectores tipo MCP):
+  **cada aluno registra um app OAuth do Google uma única vez** (tutorial no
+  curso, na linha da chave da OpenAI) e, a partir daí, **o próprio cliente
+  final clica em "Conectar com Google"** e autoriza a agenda dele — sem o
+  aluno no meio. Ressalvas a confirmar quando for construir: a tela do
+  Google mostra "app não verificado" até o aluno verificar o app; app não
+  verificado tem limite de 100 usuários (sobra para quase todo aluno); o
+  app precisa ficar "em produção", não "em teste" (em teste a autorização
+  expira em 7 dias); e o Google provavelmente exige domínio próprio no
+  endereço de retorno (o sslip.io automático pode não ser aceito).
+  Alternativa sem botão: conta de serviço, com o cliente compartilhando a
+  agenda com um e-mail. Fases sugeridas: (1) consultar e sugerir
   horários; (2) marcar com confirmação; (3) remarcar/cancelar e lembretes.
   Atalho sem integração, se quiser algo já: o bot manda o link de
   agendamento do cliente (páginas de agendamento do Google Agenda,
