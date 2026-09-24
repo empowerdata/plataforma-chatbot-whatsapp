@@ -50,11 +50,17 @@ qualquer divulgação para alunos.
 ## Fase 1 — piloto com alunos de verdade
 
 - Termo de uso (deixar explícito: instalação e operação são do aluno).
-- Atualizar sem terminal: hoje o aluno cola o comando do instalador de novo
-  (ele baixa a versão nova e reinicia). Ideia: o painel avisar "nova versão
-  disponível" e mostrar o que mudou. Atualizar sozinho sem o aluno pedir
-  foi descartado de propósito: uma versão com problema quebraria todas as
-  instalações ao mesmo tempo.
+- **Atualizar sem terminal** (fazer junto com as duas versões, antes de
+  divulgar). Hoje o aluno fica sabendo pelo aviso do Lorennzo (comunidade
+  do curso) e cola o comando do instalador de novo, pelo terminal do
+  navegador da VPS. Plano: o painel compara a versão dele com a última
+  versão estável no GitHub e mostra "nova versão disponível", com o que
+  mudou e um botão **Atualizar agora**. O painel não mexe no servidor
+  direto (dar esse poder ao container seria um risco de segurança): ele só
+  deixa um pedido de atualização, e um agendador do próprio servidor,
+  instalado pelo `provision.sh`, vê o pedido e roda a atualização.
+  Atualizar sozinho sem o aluno pedir foi descartado de propósito: uma
+  versão com problema quebraria todas as instalações ao mesmo tempo.
 - **Duas versões: teste e estável** (decidido pelo Lorennzo em 2026-09-24,
   fazer antes de divulgar). Hoje o instalador pega sempre o que está no
   `main`, então qualquer mudança publicada chega na hora a quem instala ou
