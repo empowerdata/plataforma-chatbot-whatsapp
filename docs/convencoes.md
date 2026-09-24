@@ -62,6 +62,7 @@ Datas na tela: sempre pelos formatadores de `src/lib/utils.ts` (`formatDateTime`
 - `knowledge.ts`: listKnowledge, addTextItem, addFaqItem, addFileItem, addUrlItem, updateItem, deleteItem, reindexItem, reindexBot.
 - `inbox.ts` (caixa de entrada da equipe e do portal, sempre com um `InboxScope`): parseInboxParams, listInbox, getInboxConversation, setInboxResolved, setInboxCategory, setInboxBot, sendInboxMessage, sendInboxMedia, getInboxMedia, saveInboxNotes, renameInboxContact, setInboxBlocked. Rotas de mídia (equipe e portal, escopo pela sessão): `GET /api/inbox/media/[id]` e `POST /api/inbox/send-media`. A tela é `src/components/inbox/` (usada por `/conversas` e `/portal/conversas`, cada uma passando as próprias server actions).
 - `indicators.ts` (indicadores da equipe e do portal): getIndicators(scope, dias), indicatorClients, parsePeriod. A tela é `src/components/indicators/` (usada por `/indicadores` e `/portal`).
+- `crm.ts` (funil de leads, sempre com um `CrmScope` de um cliente): getBoard, getLeadDetail, moveLeadTo, updateLeadFields, completeNextAction, saveStages, deleteLead, getToday, todayCount, getFunnel, attachLead (motor), leadForConversation (caixa de entrada), crmClients. Entrada do navegador passa por sanitizeLeadPatch/sanitizeMoveExtras/sanitizeStages. Telas em `src/components/crm/`; funis prontos em `src/shared/crm-templates.ts`.
 - `stats.ts`: getOverview(accountId, days).
 - `events.ts`: logEvent, listEvents, listNumberEvents.
 - Playground do Studio: `POST /api/playground` com `{ botId, config, variables, history, userText }`.

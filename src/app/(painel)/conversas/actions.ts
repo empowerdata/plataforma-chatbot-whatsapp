@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getAccountOrThrow } from "@/server/auth/guards";
-import { renameInboxContact, saveInboxNotes, sendInboxMessage, setInboxBlocked, setInboxBot, setInboxCategory, setInboxResolved, type InboxScope } from "@/server/services/inbox";
+import { renameInboxContact, saveInboxNotes, sendInboxMessage, setInboxBlocked, setInboxBot, setInboxCategory, setInboxLeadStage, setInboxResolved, type InboxScope } from "@/server/services/inbox";
 import { TenantNotConfigured } from "@/server/tenant";
 import type { ActionResult } from "@/components/inbox/types";
 
@@ -44,4 +44,8 @@ export async function renameContactAction(id: string, name: string) {
 
 export async function setBlockedAction(id: string, blocked: boolean) {
   return run((s) => setInboxBlocked(s, id, blocked === true));
+}
+
+export async function setStageAction(id: string, stageId: string, extras: { appointmentAt?: string; lostReason?: string }) {
+  return run((s, author) => setInboxLeadStage(s, id, String(stageId ?? ""), { appointmentAt: typeof extras?.appointmentAt === "string" ? extras.appointmentAt : undefined, lostReason: typeof extras?.lostReason === "string" ? extras.lostReason : undefined }, author));
 }

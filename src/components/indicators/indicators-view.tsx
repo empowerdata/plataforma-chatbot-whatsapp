@@ -2,6 +2,8 @@ import { ArrowDownRight, ArrowUpRight, Bot, CheckCheck, Inbox, MessagesSquare } 
 import type { Indicators } from "@/server/services/indicators";
 import { cn, formatNumber } from "@/lib/utils";
 import { ChartCard, ColumnChart, RankBars, type ColumnDatum } from "./charts";
+import { FunnelCard } from "./funnel-card";
+import type { Funnel } from "@/components/crm/types";
 
 /*
   Tela de indicadores, igual para equipe e cliente final. Ordem de leitura:
@@ -25,9 +27,9 @@ function plural(n: number, one: string, many: string): string {
   return `${formatNumber(n)} ${n === 1 ? one : many}`;
 }
 
-export function IndicatorsView({ data, audience }: { data: Indicators; audience: "staff" | "client" }) {
+export function IndicatorsView({ data, audience, funnel, funnelHint }: { data: Indicators; audience: "staff" | "client"; funnel?: Funnel | null; /** Equipe sem cliente escolhido: o funil é de um cliente só. */ funnelHint?: boolean }) {
   const { kpis, days } = data;
-  const beyondRetention = days > data.retentionDays;
+  const beyondRetention = data.retentionDays > 0 && days > data.retentionDays;
   const retentionNote = beyondRetention ? `Considera os últimos ${data.retentionDays} dias: conversas paradas há mais tempo são apagadas automaticamente.` : null;
 
   const delta = kpis.startedPrev > 0 ? Math.round(((kpis.started - kpis.startedPrev) / kpis.startedPrev) * 100) : null;
@@ -88,6 +90,14 @@ export function IndicatorsView({ data, audience }: { data: Indicators; audience:
           sub={botRate !== null ? `${formatNumber(kpis.botOnly)} de ${plural(kpis.botOnlyBase, "conversa", "conversas")}, sem a equipe` : "Ainda sem conversas no período"}
         />
       </div>
+
+      {funnel ? (
+        <div className="grid gap-3 lg:grid-cols-3">
+          <FunnelCard funnel={funnel} days={days} />
+        </div>
+      ) : funnelHint ? (
+        <p className="rounded-lg border border-dashed border-border-strong px-4 py-3 text-xs text-muted">Escolha um cliente no filtro acima para ver o funil de vendas dele (de quantos chegaram, quantos agendaram ou fecharam).</p>
+      ) : null}
 
       <div className="grid gap-3 lg:grid-cols-3">
         <ChartCard

@@ -14,7 +14,7 @@ import { dayKey } from "@/lib/utils";
  *   que a limpeza automática não apaga (vale para qualquer período).
  * - Em aberto / aguardando: retrato de agora, direto das conversas.
  * - Finalizadas, taxa do bot, categorias e horários: das conversas e mensagens
- *   guardadas, que são apagadas após CONVERSATION_RETENTION_DAYS sem atividade.
+ *   guardadas (só apagadas se o aluno ligar CONVERSATION_RETENTION_DAYS).
  *   Por isso a tela avisa quando o período pedido passa desse limite.
  */
 

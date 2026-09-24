@@ -33,7 +33,7 @@ Um painel (Next.js) que o próprio aluno instala no servidor dele: a Evolution A
 
 ### Plano de dados (banco das conversas, `src/server/tenant/`)
 
-Schema `chatbot`: `contacts` (com `bot_disabled` e `notes`), `conversations` (com `category` e `resolved_at`), `messages`, `kb_chunks` (pgvector 1536), `daily_stats`, `meta` (versão do schema).
+Schema `chatbot`: `contacts` (com `bot_disabled`, `notes` e `lead_id`), `conversations` (com `category`, `suggested_category` e `resolved_at`), `messages`, `kb_chunks` (pgvector 1536), `daily_stats`, CRM (`crm_stages`, `leads`, `lead_events`), `meta` (versão do schema).
 
 Onde fica, nesta ordem (`resolveTarget` em `registry.ts`):
 
@@ -88,15 +88,26 @@ Mesma tela para a equipe (`/indicadores`, filtro por cliente) e para o cliente f
 
 - **Série por dia, conversas iniciadas, pedidos de atendente**: `chatbot.daily_stats`, que a limpeza não apaga — vale para 7, 30 ou 90 dias. O "dia" é o de Brasília (`dayKey`), não o de UTC.
 - **Em aberto / aguardando**: retrato de agora, direto de `conversations`.
-- **Finalizadas, % só pelo bot, assuntos, horário**: das conversas e mensagens guardadas. Como elas somem depois de `CONVERSATION_RETENTION_DAYS`, a tela avisa quando o período pedido passa desse limite.
+- **Finalizadas, % só pelo bot, assuntos, horário**: das conversas e mensagens guardadas. Se a limpeza opcional estiver ligada, a tela avisa quando o período pedido passa do limite.
+- **Funil de vendas** (quando há um cliente escolhido): do histórico dos leads (`getFunnel`).
 
 Gráficos em SVG próprio (`charts.tsx`, sem biblioteca): série única em `--color-chart-1`, "sem categoria"/"outras" em `--color-chart-muted`, dica ao passar o mouse e botão para ver a mesma informação em tabela.
+
+### CRM (`src/server/services/crm.ts` + `src/components/crm/`)
+
+Funil de leads por cliente do aluno, para a equipe (`/funil`, `/hoje`, com o cliente em `?cl=`) e para o cliente (`/portal/funil`, `/portal/hoje`). Todo acesso passa por um `CrmScope` (conta + cliente, validado contra a conta).
+
+- **Lead**: uma pessoa por cliente (`leads`, único por `client_id` + telefone). O motor liga cada contato novo a um lead (`attachLead` em `inbound.ts`), criando-o na primeira etapa em andamento; `insertMessage` atualiza `last_inbound_at`/`last_outbound_at`, de onde saem "aguardando vocês" e "esfriando". Contatos de antes do CRM são importados em lote na primeira abertura do funil (`importContactsAsLeads`).
+- **Etapas** (`crm_stages`): por cliente, criadas pelo segmento (`src/shared/crm-templates.ts`) e editáveis. Tipo `open`/`won`/`lost` e `asks_date`. Mover para etapa com data exige data e hora; para perda, o motivo.
+- **Histórico** (`lead_events`): entrada, mudanças de etapa (com quem moveu), próxima ação, valor, interesse. O funil do período (`getFunnel`) é calculado daqui.
+- **Na conversa**: a etapa aparece no cabeçalho e na ficha (`leadForConversation`); as notas do contato passam a morar no lead.
+- O bot não move etapas; a categoria que ele marca vai para `suggested_category`.
 
 ### Monitor (`src/server/monitor.ts`)
 
 A cada 60 s (iniciado por `instrumentation.ts`) confere a saúde dos servidores e o estado de cada instância, corrige o status no banco e registra eventos. Também exposto em `GET /api/internal/monitor` para cron externo.
 
-O mesmo processo, no máximo uma vez por dia, apaga conversas e mensagens sem atividade há mais de `CONVERSATION_RETENTION_DAYS` (padrão 30) no banco de conversas de cada conta — mensagens caem em cascata junto com a conversa. As estatísticas agregadas (`chatbot.daily_stats`) não são apagadas.
+O mesmo processo pode, uma vez por dia, apagar conversas e mensagens sem atividade há mais de `CONVERSATION_RETENTION_DAYS` — desligado por padrão (0): o histórico fica para quem atende ver os retornos, e o bot só lê a conversa atual. Leads e estatísticas agregadas nunca são apagados por aqui.
 
 ### Segurança
 

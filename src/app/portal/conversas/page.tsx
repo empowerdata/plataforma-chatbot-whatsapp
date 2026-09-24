@@ -4,7 +4,7 @@ import { getInboxConversation, listInbox, parseInboxParams, type InboxScope } fr
 import { TenantNotConfigured } from "@/server/tenant";
 import { EmptyState } from "@/components/ui/primitives";
 import { Inbox } from "@/components/inbox/inbox";
-import { renameContactAction, saveNotesAction, sendMessageAction, setBlockedAction, setBotAction, setCategoryAction, setResolvedAction } from "./actions";
+import { renameContactAction, saveNotesAction, sendMessageAction, setBlockedAction, setBotAction, setCategoryAction, setResolvedAction, setStageAction } from "./actions";
 
 export const metadata = { title: "Conversas" };
 
@@ -52,6 +52,7 @@ export default async function PortalConversasPage(props: PageProps<"/portal/conv
         saveNotes: saveNotesAction,
         rename: renameContactAction,
         setBlocked: setBlockedAction,
+        setStage: setStageAction,
       }}
       emptyHint="O seu WhatsApp ainda não foi conectado. Fale com quem administra o seu atendimento."
     />

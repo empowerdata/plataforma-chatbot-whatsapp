@@ -2,6 +2,7 @@ import { LogOut } from "lucide-react";
 import { requireClientAccess } from "@/server/auth/guards";
 import { logoutAction } from "@/app/(auth)/login/actions";
 import { Button } from "@/components/ui/primitives";
+import { todayCount } from "@/server/services/crm";
 import { PortalNav } from "./portal-nav";
 
 // Portal do cliente final: nunca pré-renderizar (depende de sessão + banco).
@@ -9,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const { client, account, user } = await requireClientAccess();
+  const pending = await todayCount({ accountId: client.accountId, clientId: client.id, staff: false });
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
@@ -18,7 +20,7 @@ export default async function PortalLayout({ children }: { children: React.React
             <div className="truncate text-sm font-semibold text-foreground">{client.name}</div>
             <div className="truncate text-[11px] text-muted">Atendimento via {account.branding?.productName || "WhatsApp"}</div>
           </div>
-          <PortalNav />
+          <PortalNav todayCount={pending} />
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <div className="hidden text-right leading-tight sm:block">

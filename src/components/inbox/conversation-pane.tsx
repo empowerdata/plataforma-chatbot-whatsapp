@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Ban, Bell, Bot, Check, CheckCircle2, ChevronDown, Copy, FileText, Mic, MoreHorizontal, PanelRight, Paperclip, Plus, RotateCcw, SendHorizontal, ShieldCheck, Square, Tag, Trash2, User, X } from "lucide-react";
+import { ArrowLeft, Ban, Bell, Bot, Check, CheckCircle2, ChevronDown, Copy, FileText, KanbanSquare, Mic, MoreHorizontal, PanelRight, Paperclip, Plus, RotateCcw, SendHorizontal, ShieldCheck, Sparkles, Square, Tag, Trash2, User, X } from "lucide-react";
 import { Button } from "@/components/ui/primitives";
 import { useDialogs } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Avatar, MenuItem, MenuLabel, MenuSeparator, Popover, StatusLabel, botExplanation, botLabel } from "./parts";
 import { MEDIA_MAX_BYTES, type ActionResult, type BotState, type InboxActions, type InboxConversation, type InboxThreadItem } from "./types";
 import { MediaView, formatBytes, formatDuration, useVoiceRecorder } from "./media";
+import { useStageMove } from "../crm/move-dialog";
 
 type Audience = "staff" | "client";
 
@@ -64,7 +65,10 @@ export function ConversationPane({
   };
   const origin = c.clientName && audience === "staff" ? `${c.clientName} · ${c.numberLabel}` : c.numberLabel;
   const categoryMenu = (
-    <CategoryMenu category={c.category} categories={categories} busy={busy === "category"} onChange={(value) => run("category", () => actions.setCategory(c.id, value), value ? "Categoria atualizada." : "Categoria removida.")} />
+    <>
+      {c.lead ? <StageMenu conversation={c} busy={busy === "stage"} onMove={(stageId, extras, name) => run("stage", () => actions.setStage(c.id, stageId, extras), `Movido para ${name}.`)} /> : null}
+      <CategoryMenu category={c.category} suggestion={c.suggestedCategory} categories={categories} busy={busy === "category"} onChange={(value) => run("category", () => actions.setCategory(c.id, value), value ? "Categoria atualizada." : "Categoria removida.")} />
+    </>
   );
 
   return (
@@ -77,7 +81,7 @@ export function ConversationPane({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="truncate text-sm font-semibold text-foreground">{c.title}</h2>
-            <div className="hidden shrink-0 sm:block">{categoryMenu}</div>
+            <div className="hidden shrink-0 items-center gap-1.5 sm:flex">{categoryMenu}</div>
           </div>
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11.5px] text-muted">
             <StatusLabel status={c.status} className="shrink-0" />
@@ -213,7 +217,56 @@ function BotNotice({ conversation: c, audience, busy, onResume, onUnblock }: { c
 
 // ------------------------------------------------------------ categoria
 
-function CategoryMenu({ category, categories, busy, onChange }: { category: string | null; categories: string[]; busy: boolean; onChange: (value: string | null) => void }) {
+/** Etapa da pessoa no funil do cliente, trocável sem sair da conversa. */
+function StageMenu({ conversation: c, busy, onMove }: { conversation: InboxConversation; busy: boolean; onMove: (stageId: string, extras: { appointmentAt?: string; lostReason?: string }, name: string) => void }) {
+  const { ask, dialog } = useStageMove();
+  const lead = c.lead!;
+  const current = lead.stages.find((s) => s.id === lead.stageId);
+  return (
+    <>
+      {dialog}
+      <Popover
+        trigger={({ toggle, open }) => (
+          <button
+            type="button"
+            onClick={toggle}
+            disabled={busy}
+            title="Etapa no funil"
+            className={cn("inline-flex h-6 shrink-0 items-center gap-1 rounded-md bg-accent-soft px-1.5 text-[11px] font-medium text-accent transition-colors hover:bg-accent-soft/80 disabled:opacity-60", open && "ring-1 ring-accent/40")}
+          >
+            <KanbanSquare className="h-3 w-3" />
+            {current?.name ?? "Sem etapa"}
+            <ChevronDown className="h-3 w-3 opacity-60" />
+          </button>
+        )}
+      >
+        {(close) => (
+          <div className="max-h-72 overflow-y-auto">
+            <MenuLabel>Etapa no funil</MenuLabel>
+            {lead.stages.map((s) => (
+              <MenuItem
+                key={s.id}
+                active={s.id === lead.stageId}
+                onClick={async () => {
+                  close();
+                  if (s.id === lead.stageId) return;
+                  const extras = await ask(s, c.title);
+                  if (extras) onMove(s.id, extras, s.name);
+                }}
+              >
+                <span className="flex-1 truncate">{s.name}</span>
+                {s.id === lead.stageId ? <Check className="h-3.5 w-3.5 text-accent" /> : s.kind === "won" ? <span className="text-[10px] text-success">ganho</span> : s.kind === "lost" ? <span className="text-[10px] text-subtle">perda</span> : null}
+              </MenuItem>
+            ))}
+          </div>
+        )}
+      </Popover>
+    </>
+  );
+}
+
+/** Categoria da conversa. A sugestão do bot aparece em itálico até uma pessoa confirmar (decisão com o Lorennzo). */
+function CategoryMenu({ category, suggestion, categories, busy, onChange }: { category: string | null; suggestion: string | null; categories: string[]; busy: boolean; onChange: (value: string | null) => void }) {
   const { promptDialog } = useDialogs();
   const options = category && !categories.includes(category) ? [category, ...categories] : categories;
   return (
@@ -225,12 +278,13 @@ function CategoryMenu({ category, categories, busy, onChange }: { category: stri
           disabled={busy}
           className={cn(
             "inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium transition-colors disabled:opacity-60",
-            category ? "bg-surface-3/80 text-foreground/80 hover:text-foreground" : "text-subtle hover:bg-surface-2 hover:text-foreground",
+            category ? "bg-surface-3/80 text-foreground/80 hover:text-foreground" : suggestion ? "border border-dashed border-border-strong italic text-muted hover:text-foreground" : "text-subtle hover:bg-surface-2 hover:text-foreground",
             open && "bg-surface-3 text-foreground",
           )}
+          title={!category && suggestion ? "Sugerido pelo bot. Clique para confirmar ou trocar." : undefined}
         >
           <Tag className="h-3 w-3" />
-          {category ?? "Categorizar"}
+          {category ?? (suggestion ? `${suggestion}?` : "Categorizar")}
           <ChevronDown className="h-3 w-3 opacity-60" />
         </button>
       )}
@@ -238,6 +292,16 @@ function CategoryMenu({ category, categories, busy, onChange }: { category: stri
       {(close) => (
         <div className="max-h-72 overflow-y-auto">
           <MenuLabel>Categoria</MenuLabel>
+          {!category && suggestion ? (
+            <MenuItem
+              onClick={() => {
+                close();
+                onChange(suggestion);
+              }}
+            >
+              <Sparkles className="h-3.5 w-3.5 text-accent" /> <span className="flex-1 truncate">Confirmar sugestão do bot: {suggestion}</span>
+            </MenuItem>
+          ) : null}
           {options.length ? (
             options.map((opt) => (
               <MenuItem

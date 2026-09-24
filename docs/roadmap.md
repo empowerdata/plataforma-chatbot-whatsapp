@@ -26,6 +26,16 @@ Para o histórico de decisões e o porquê de cada uma, ver
   para baixar), buscadas no WhatsApp na hora — nada fica guardado no servidor.
 - **Todo número pertence a um cliente** (obrigatório ao cadastrar e ao
   editar), e o filtro por cliente fica sempre à vista para a equipe.
+- **CRM (funil de leads)** — `/funil` e `/hoje` para a equipe (por cliente),
+  `/portal/funil` e `/portal/hoje` para o cliente: funil pronto pelo segmento
+  e editável, quadro com arrastar e lista com mover em lote, ficha do lead
+  (próxima ação, agendamento, interesse, valor, notas, linha do tempo,
+  apagar a pedido), tela Hoje, sinais "aguardando vocês" e "esfriando",
+  etapa dentro da conversa e funil de vendas nos Indicadores. Toda pessoa
+  que escreve vira lead; as etapas são movidas por pessoas.
+- **Conversas não são mais apagadas** (limpeza opcional); quem volta a
+  conversar aparece uma vez na lista, com o histórico inteiro. A categoria do
+  bot virou sugestão, confirmada por uma pessoa.
 - **Indicadores** (`/indicadores` para a equipe, com filtro por cliente;
   `/portal` para o cliente final): conversas iniciadas (com variação sobre o
   período anterior), em aberto e aguardando agora, finalizadas, % resolvida
@@ -45,8 +55,8 @@ Para o histórico de decisões e o porquê de cada uma, ver
   categorização automática da conversa), pausa quando humano responde,
   horário de funcionamento, transcrição de áudio, **visão em imagens** (o bot
   enxerga a foto que o cliente manda, não só o aviso "recebi uma imagem"),
-  estatísticas diárias, filtro de período (7/30/90 dias), limpeza automática
-  de conversas com mais de 30 dias.
+  estatísticas diárias, filtro de período (7/30/90 dias), limpeza opcional
+  de conversas antigas (desligada por padrão).
 - **Distribuição**: instalação de conta única via VPS (`infra/`, caminho
   principal, ~R$ 30/mês) ou via Render (`render.yaml`, mais caro, sem
   terminal). Nenhuma delas depende de infraestrutura operada pela Daxus.
@@ -94,9 +104,6 @@ qualquer divulgação para alunos.
 
 ## Fase 2 — qualidade
 
-- **Resumo por contato**, atualizado sozinho quando a conversa termina e
-  guardado além da limpeza de 30 dias (ficha do contato + contexto do bot).
-  Ver avaliação em `docs/visao-e-decisoes.md`.
 - Custo estimado por conversa/número no painel (tokens × preço do modelo).
 - Alertas por e-mail/WhatsApp quando um número cai (hoje só evento no painel).
 - Versões do bot com histórico e "voltar para versão".
@@ -119,9 +126,12 @@ qualquer divulgação para alunos.
   3. Remarcar/cancelar e lembretes.
   Alternativas avaliadas (agenda própria na plataforma, conta de serviço)
   e ressalvas em `docs/visao-e-decisoes.md`.
-- **Kanban de leads (mini-CRM)**, usando a categorização de conversas e o
-  status aberto/finalizado já construídos como base — cada categoria pode
-  virar uma coluna, sem retrabalho de schema.
+- **CRM, fase C** (a seguir): ao fim de cada conversa o bot anota sinais com
+  a frase que provou e sugere interesse e etapa (a equipe aceita com um
+  clique); resumo por lead, que o bot também lê quando a pessoa volta;
+  retorno com mensagens prontas; lembrete de consulta na véspera.
+- **CRM, fase D**: agenda conectada (link iCal), vários atendentes com
+  responsável por lead, reativação automática com limites.
 - Canal oficial do WhatsApp (Meta Cloud API) como alternativa ao
   Evolution/Baileys.
 - Domínio e marca próprios por instalação (o aluno já pode fazer isso hoje

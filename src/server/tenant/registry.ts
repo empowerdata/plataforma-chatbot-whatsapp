@@ -5,10 +5,10 @@ import { decryptSecret } from "../crypto";
 import { env } from "../env";
 import { createPgliteExecutor, createPostgresExecutor, tenantPgliteDir, type SqlExecutor } from "./executor";
 import { TenantStore } from "./store";
-import { TENANT_SCHEMA_V1, TENANT_SCHEMA_V2, TENANT_SCHEMA_V3, TENANT_SCHEMA_V4 } from "./schema-sql";
+import { TENANT_SCHEMA_V1, TENANT_SCHEMA_V2, TENANT_SCHEMA_V3, TENANT_SCHEMA_V4, TENANT_SCHEMA_V5 } from "./schema-sql";
 
 /** Versão atual do schema do aluno. Ao mudar schema.sql, incremente e adicione uma migração. */
-export const TENANT_SCHEMA_VERSION = 4;
+export const TENANT_SCHEMA_VERSION = 5;
 
 /** Scripts por versão: a instalação roda todos os que faltam, em ordem. */
 const MIGRATIONS: { version: number; sql: string }[] = [
@@ -16,6 +16,7 @@ const MIGRATIONS: { version: number; sql: string }[] = [
   { version: 2, sql: TENANT_SCHEMA_V2 },
   { version: 3, sql: TENANT_SCHEMA_V3 },
   { version: 4, sql: TENANT_SCHEMA_V4 },
+  { version: 5, sql: TENANT_SCHEMA_V5 },
 ];
 
 export class TenantNotConfigured extends Error {

@@ -307,7 +307,7 @@ function ListRow({ item, active, showClient, showNumber, onClick }: { item: Inbo
           </div>
           <div className="mt-0.5 flex items-center gap-2">
             <p className={cn("min-w-0 flex-1 truncate text-xs", item.status === "finalizada" ? "text-subtle" : "text-muted")}>{item.preview ?? "Sem mensagens ainda."}</p>
-            {item.category ? <span className="max-w-[40%] shrink-0 truncate rounded bg-surface-3/70 px-1.5 text-[10.5px] leading-4 text-muted">{item.category}</span> : null}
+            {item.category ? <span title={item.categorySuggested ? "Sugerido pelo bot" : undefined} className={cn("max-w-[40%] shrink-0 truncate rounded bg-surface-3/70 px-1.5 text-[10.5px] leading-4 text-muted", item.categorySuggested && "italic")}>{item.category}</span> : null}
           </div>
         </div>
       </button>

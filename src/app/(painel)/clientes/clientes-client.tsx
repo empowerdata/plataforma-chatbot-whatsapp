@@ -25,7 +25,8 @@ type ClienteItem = {
   portalUser: PortalUser | null;
 };
 
-const SEGMENT_SUGGESTIONS = ["Pizzaria / delivery", "Restaurante", "Salão / barbearia", "Clínica / consultório", "Loja / comércio", "Imobiliária", "Serviços", "Outro"];
+// O segmento escolhe o funil pronto do CRM (src/shared/crm-templates.ts).
+const SEGMENT_SUGGESTIONS = ["Clínica / consultório", "Personal / academia", "Salão / barbearia", "Pizzaria / delivery", "Restaurante", "Loja / comércio", "Imobiliária", "Serviços", "Outro"];
 
 export function ClientesClient({ clients }: { clients: ClienteItem[] }) {
   const toast = useToast();

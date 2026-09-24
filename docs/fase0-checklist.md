@@ -37,6 +37,9 @@ corrigiu três bugs que bloqueavam toda instalação (repositório privado,
 - [ ] Pelo painel: foto, PDF e áudio gravado chegam no celular do cliente (o áudio como mensagem de voz) e aparecem na conversa do painel.
 - [ ] Foto e áudio que o cliente manda abrem no painel (foto amplia, áudio toca com a transcrição); o mesmo para mídia mandada pelo celular do número.
 - [ ] Número novo só é criado com cliente escolhido.
+- [ ] Quem manda a primeira mensagem aparece em "Novo" no funil do cliente (portal e equipe).
+- [ ] Mover para "Agendado" pede data e hora; o agendamento aparece em Hoje no dia; "Compareceu" e "Faltou" funcionam de lá.
+- [ ] Quem volta a conversar depois de dias aparece uma vez na lista, com a conversa anterior acima e a marca "Voltou a conversar".
 - [ ] Interruptor "Bot" desligado numa conversa → o bot não responde mais aquele contato até religar.
 - [ ] "Quero falar com atendente" → aviso chega no telefone configurado e a conversa entra em "Aguardando" (barra âmbar na lista).
 - [ ] Horários na tela batem com o horário de Brasília (o servidor roda em UTC).

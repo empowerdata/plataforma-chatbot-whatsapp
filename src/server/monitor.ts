@@ -54,10 +54,12 @@ const gp = globalThis as unknown as { __lastPurgeAt?: number };
 
 /**
  * Apaga conversas e mensagens antigas (ver CONVERSATION_RETENTION_DAYS) no
- * Supabase de cada conta, no máximo uma vez por dia — o monitor roda a cada
- * minuto, mas essa limpeza não precisa disso.
+ * banco de conversas de cada conta, no máximo uma vez por dia. Desligado por
+ * padrão (0): o histórico fica para quem atende ver os retornos; o bot já só
+ * lê a conversa atual. Os leads do CRM nunca são apagados por aqui.
  */
 async function purgeOldConversationsOnceADay(): Promise<void> {
+  if (env.CONVERSATION_RETENTION_DAYS <= 0) return;
   const DAY_MS = 24 * 3600_000;
   if (gp.__lastPurgeAt && Date.now() - gp.__lastPurgeAt < DAY_MS - 3600_000) return;
   gp.__lastPurgeAt = Date.now();

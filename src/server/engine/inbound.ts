@@ -4,7 +4,7 @@ import { embed, transcribe, type ModelMessage, type UserContent } from "ai";
 import { getDb, schema } from "../db";
 import type { Bot, EvolutionNode, NumberRow } from "../db/schema";
 import { getTenantStore } from "../tenant/registry";
-import type { TenantStore, MessageRow } from "../tenant/store";
+import type { Contact, TenantStore, MessageRow } from "../tenant/store";
 import { getEvolutionClient } from "../evolution/nodes";
 import type { EvolutionClient, InboundMessage, WebhookEvent } from "../evolution/types";
 import { getAccountAi, type AccountAi } from "../ai/provider";
@@ -17,6 +17,7 @@ import { sleep, splitBubbles, typingDelayMs } from "./reply";
 import { markSent, wasSentByUs } from "./sent-cache";
 import { cacheImage, takeImage } from "./media-cache";
 import { mediaRefFrom } from "../evolution/media-ref";
+import { attachLead } from "../services/crm";
 import { applyVariables, type BotConfig } from "@/shared/bot-config";
 import { env } from "../env";
 
@@ -121,6 +122,7 @@ async function handleInbound(ctx: NumberContext, msg: InboundMessage): Promise<v
     }
     if (await store.messageExists(number.id, msg.externalId)) return;
     const contact = await store.upsertContact({ numberId: number.id, jid: msg.remoteJid, phone: msg.phone });
+    await linkLead(ctx, store, contact);
     const { conversation } = await store.getOrCreateConversation({ numberId: number.id, contactId: contact.id, timeoutHours: eff.timeoutHours });
     await store.insertMessage({
       numberId: number.id,
@@ -145,6 +147,7 @@ async function handleInbound(ctx: NumberContext, msg: InboundMessage): Promise<v
   if (await store.messageExists(number.id, msg.externalId)) return;
 
   const contact = await store.upsertContact({ numberId: number.id, jid: msg.remoteJid, phone: msg.phone, pushName: msg.pushName });
+  await linkLead(ctx, store, contact);
   const isNewContact = now.getTime() - new Date(contact.first_seen_at).getTime() < 10_000;
   const { conversation, created } = await store.getOrCreateConversation({ numberId: number.id, contactId: contact.id, timeoutHours: eff.timeoutHours });
 
@@ -201,6 +204,17 @@ async function transcribeInbound(ctx: NumberContext, msg: InboundMessage): Promi
   if (!media) return null;
   const res = await transcribe({ model, audio: Buffer.from(media.base64, "base64") });
   return res.text?.trim() || null;
+}
+
+/**
+ * Toda pessoa que conversa com um número de cliente vira um lead no funil dele
+ * (ver services/crm.ts). Falha aqui nunca pode impedir o atendimento.
+ */
+async function linkLead(ctx: NumberContext, store: TenantStore, contact: Contact): Promise<void> {
+  if (!ctx.number.clientId || contact.lead_id) return;
+  await attachLead(store, { clientId: ctx.number.clientId, contact, source: ctx.number.label }).catch((err) => {
+    void logEvent({ accountId: ctx.number.accountId, numberId: ctx.number.id, level: "warn", type: "crm", message: `Falha ao registrar o lead: ${errMsg(err)}` });
+  });
 }
 
 /** Endereço da mídia (para o painel baixar quando alguém abrir a conversa) e nome do arquivo. */
@@ -419,7 +433,8 @@ function buildHandlers(d: HandlerDeps): ToolHandlers {
 
   if (config.categorization.enabled && config.categorization.options.length) {
     handlers.categorizar_conversa = async ({ categoria }) => {
-      await d.store.setConversationCategory(d.conversationId, categoria);
+      // Só sugestão: a categoria de verdade é a que uma pessoa confirma (decisão com o Lorennzo).
+      await d.store.setSuggestedCategory(d.conversationId, categoria);
       return "Categoria registrada.";
     };
   }

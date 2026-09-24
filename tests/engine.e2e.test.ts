@@ -365,4 +365,82 @@ describe("engine ponta a ponta (Evolution simulada + IA simulada)", () => {
     // Prévia da lista em português, não "[document]".
     expect((await store.getConversation(conversation.id))?.last_message_preview).toBe("🎤 Áudio");
   });
+
+  it("CRM: toda pessoa vira lead no funil; pessoas movem etapas com data/motivo; Hoje e funil batem; outro cliente não alcança", async () => {
+    const crm = await import("@/server/services/crm");
+    const { dayKey } = await import("@/lib/utils");
+    const { getDb, schema } = await import("@/server/db");
+    const scope = { accountId, clientId: ownerClientId, staff: true };
+    const filters = { search: "", filter: "" as const, view: "quadro" as const };
+
+    let board = await crm.getBoard(scope, filters);
+    // Sem segmento no cadastro: funil padrão de serviços, e todo mundo que escreveu está na entrada.
+    expect(board.stages.map((s) => s.name)).toEqual(["Novo", "Em atendimento", "Proposta enviada", "Fechou", "Perdido"]);
+    const names = board.cards.map((c) => c.name);
+    expect(names).toEqual(expect.arrayContaining(["Juliana", "Bruno", "Carla", "Célia"]));
+    expect(new Set(board.cards.map((c) => c.stageId))).toEqual(new Set([board.stages[0].id]));
+    const juliana = board.cards.find((c) => c.name === "Juliana")!;
+    const bruno = board.cards.find((c) => c.name === "Bruno")!;
+
+    // Etapa nova que pede data, no meio do funil.
+    const drafts = board.stages.map((s) => ({ id: s.id, name: s.name, kind: s.kind, asksDate: s.asksDate }));
+    drafts.splice(2, 0, { id: undefined as unknown as string, name: "Agendado", kind: "open", asksDate: true });
+    await crm.saveStages(scope, drafts);
+    board = await crm.getBoard(scope, filters);
+    const agendado = board.stages.find((s) => s.name === "Agendado")!;
+    const fechou = board.stages.find((s) => s.kind === "won")!;
+    const perdido = board.stages.find((s) => s.kind === "lost")!;
+    expect(board.stages.map((s) => s.name)).toEqual(["Novo", "Em atendimento", "Agendado", "Proposta enviada", "Fechou", "Perdido"]);
+
+    await expect(crm.moveLeadTo(scope, juliana.id, agendado.id, {}, "Maria")).rejects.toThrow("data e a hora");
+    await crm.moveLeadTo(scope, juliana.id, agendado.id, { appointmentAt: `${dayKey(new Date())}T23:59` }, "Maria");
+    const today = await crm.getToday(scope);
+    expect(today.agenda.map((c) => c.id)).toContain(juliana.id);
+
+    await expect(crm.moveLeadTo(scope, bruno.id, perdido.id, {}, "Maria")).rejects.toThrow("motivo");
+    await crm.moveLeadTo(scope, bruno.id, perdido.id, { lostReason: "Preço" }, "Maria");
+    await crm.moveLeadTo(scope, juliana.id, fechou.id, {}, "Maria");
+    await crm.updateLeadFields(scope, juliana.id, { valueCents: 35000, nextActionAt: `${dayKey(new Date())}T08:00`, nextActionNote: "mandar cardápio" }, "Maria");
+
+    const funnel = await crm.getFunnel(scope, 7);
+    expect(funnel.total).toBe(board.cards.length);
+    expect(funnel.steps[0]).toMatchObject({ name: "Novo", reached: funnel.total, pct: 100 });
+    expect(funnel.steps.find((s) => s.name === "Agendado")?.reached).toBe(1); // Juliana passou por ele
+    expect(funnel).toMatchObject({ won: 1, lostReasons: [{ reason: "Preço", n: 1 }], lostByStage: [{ name: "Perdido", n: 1 }] });
+    expect(funnel.wonValue).toContain("350");
+
+    const detail = await crm.getLeadDetail(scope, juliana.id);
+    expect(detail?.timeline.map((t) => t.label)).toEqual(expect.arrayContaining(["Movido para Agendado", "Movido para Fechou"]));
+    expect(detail?.timeline.find((t) => t.label === "Movido para Agendado")?.actor).toBe("Maria");
+
+    // Outro cliente da conta não alcança o lead; cliente de outra conta nem abre.
+    const db = await getDb();
+    const [outro] = await db.insert(schema.clients).values({ accountId, name: "Outra loja" }).returning();
+    await expect(crm.moveLeadTo({ ...scope, clientId: outro.id }, juliana.id, fechou.id, {}, "x")).rejects.toThrow("Lead não encontrado");
+    expect(await crm.getLeadDetail({ ...scope, clientId: outro.id }, juliana.id)).toBeNull();
+    await expect(crm.getBoard({ accountId: "00000000-0000-4000-8000-000000000000", clientId: ownerClientId, staff: true }, filters)).rejects.toThrow("Cliente não encontrado");
+
+    // Funil sem etapa de ganho não é aceito.
+    await expect(crm.saveStages(scope, [{ name: "Só uma", kind: "open", asksDate: false }])).rejects.toThrow("ganho");
+  });
+
+  it("quem volta a conversar aparece uma vez na lista, com o histórico todo e a marca do retorno", async () => {
+    const { listInbox, getInboxConversation } = await import("@/server/services/inbox");
+    const { contact } = await conversationOf("5511977770030"); // Carla
+    // Força uma conversa nova (como depois de 12 h de silêncio).
+    const { conversation: nova, created } = await store.getOrCreateConversation({ numberId, contactId: contact.id, timeoutHours: 0 });
+    expect(created).toBe(true);
+    await store.insertMessage({ numberId, conversationId: nova.id, contactId: contact.id, direction: "in", sender: "contact", text: "Oi de novo! Quero repetir o pedido" });
+
+    const all = { view: "todas" as const, category: null, numberId: null, clientId: null, limit: 60, search: "" };
+    const rows = (await listInbox(staffScope(), all)).items.filter((i) => i.title === "Carla");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(nova.id);
+
+    const detail = await getInboxConversation(staffScope(), nova.id);
+    const texts = (detail?.thread ?? []).map((i) => (i.kind === "message" ? i.body : i.kind === "event" ? i.text : ""));
+    expect(texts).toContain("Vocês entregam no centro?"); // da conversa anterior
+    expect(texts.some((t) => t.startsWith("Voltou a conversar depois de"))).toBe(true);
+    expect(detail?.lead?.stages.length).toBeGreaterThan(0);
+  });
 });

@@ -39,6 +39,8 @@ export type InboxListItem = {
   numberLabel: string;
   clientName: string | null;
   category: string | null;
+  /** A categoria mostrada é só a sugestão do bot (ninguém confirmou ainda). */
+  categorySuggested: boolean;
   status: ConversationStatus;
 };
 
@@ -79,8 +81,13 @@ export type InboxConversation = {
   numberConnected: boolean;
   /** Por quantas horas o bot pausa depois que alguém da equipe responde. */
   pauseHoursOnReply: number;
+  /** Categoria confirmada por uma pessoa. */
   category: string | null;
+  /** Sugestão do bot, quando ninguém confirmou uma categoria. */
+  suggestedCategory: string | null;
   status: ConversationStatus;
+  /** A pessoa no funil do cliente (null se o número não tem cliente). */
+  lead: InboxLead | null;
   resolved: boolean;
   needsHuman: boolean;
   handoffReason: string | null;
@@ -98,6 +105,16 @@ export type InboxConversation = {
     isBlocked: boolean;
   };
   thread: InboxThreadItem[];
+};
+
+/** Resumo do lead dentro da conversa, para mover de etapa sem sair do chat. */
+export type InboxLead = {
+  id: string;
+  clientId: string;
+  stageId: string | null;
+  stages: { id: string; name: string; kind: "open" | "won" | "lost"; asksDate: boolean }[];
+  nextAction: string | null;
+  appointment: string | null;
 };
 
 export type InboxCounts = Record<InboxView, number>;
@@ -122,4 +139,6 @@ export type InboxActions = {
   saveNotes: (id: string, notes: string) => Promise<ActionResult>;
   rename: (id: string, name: string) => Promise<ActionResult>;
   setBlocked: (id: string, blocked: boolean) => Promise<ActionResult>;
+  /** Move a pessoa de etapa no funil (data para etapas de agendamento, motivo para perdas). */
+  setStage: (id: string, stageId: string, extras: { appointmentAt?: string; lostReason?: string }) => Promise<ActionResult>;
 };

@@ -59,7 +59,8 @@ const schema = z.object({
    * aluno antes de ser apagada automaticamente (mensagens incluídas). As
    * estatísticas agregadas (gráfico da Visão Geral) não são afetadas.
    */
-  CONVERSATION_RETENTION_DAYS: z.coerce.number().int().min(1).default(30),
+  // 0 = nunca apagar (padrão). Com um número, apaga conversas paradas há mais que isso (LGPD).
+  CONVERSATION_RETENTION_DAYS: z.coerce.number().int().min(0).default(0),
 });
 
 type Env = z.infer<typeof schema> & { APP_SECRET: string; APP_URL: string; isProd: boolean; devSimulator: boolean };

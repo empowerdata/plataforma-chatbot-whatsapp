@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Pencil, X } from "lucide-react";
 import { Switch } from "@/components/ui/primitives";
 import { useDialogs } from "@/components/ui/dialog";
@@ -92,6 +93,19 @@ export function ContactPane({
         <Switch checked={botOn} disabled={botLocked || busy === "bot"} onChange={(v) => run("bot", () => actions.setBot(c.id, v), v ? "Bot ligado nesta conversa." : "Bot desligado nesta conversa.")} label={botOn ? "Ligado" : "Desligado"} />
         <p className={cn("mt-2 text-xs leading-relaxed", c.bot.kind === "paused" ? "text-warning" : "text-muted")}>{botExplanation(c.bot, audience)}</p>
       </Section>
+
+      {c.lead ? (
+        <Section title="Funil">
+          <dl className="space-y-1.5 text-xs">
+            <Row label="Etapa" value={c.lead.stages.find((s) => s.id === c.lead!.stageId)?.name ?? "Sem etapa"} />
+            {c.lead.appointment ? <Row label="Agendamento" value={c.lead.appointment} /> : null}
+            {c.lead.nextAction ? <Row label="Próxima ação" value={c.lead.nextAction} /> : null}
+          </dl>
+          <Link href={audience === "client" ? `/portal/funil?lead=${c.lead.id}` : `/funil?cl=${c.lead.clientId}&lead=${c.lead.id}`} className="mt-2 inline-block text-xs text-accent hover:underline">
+            Abrir a ficha no funil
+          </Link>
+        </Section>
+      ) : null}
 
       <Notes key={c.id} conversation={c} actions={actions} />
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BarChart3, Database } from "lucide-react";
 import { requireAccount } from "@/server/auth/guards";
 import { getIndicators, indicatorClients, INDICATOR_PERIODS, parsePeriod } from "@/server/services/indicators";
+import { getFunnel } from "@/server/services/crm";
 import { TenantNotConfigured } from "@/server/tenant";
 import { EmptyState, PageHeader } from "@/components/ui/primitives";
 import { IndicatorFilters } from "@/components/indicators/filters";
@@ -19,9 +20,10 @@ export default async function IndicadoresPage(props: PageProps<"/indicadores">) 
   const clientName = clientId ? clients.find((c) => c.id === clientId)?.name : null;
 
   let data: Awaited<ReturnType<typeof getIndicators>> | null = null;
+  let funnel: Awaited<ReturnType<typeof getFunnel>> | null = null;
   let noDatabase = false;
   try {
-    data = await getIndicators({ accountId: account.id, clientId, staff: true }, days);
+    [data, funnel] = await Promise.all([getIndicators({ accountId: account.id, clientId, staff: true }, days), clientId ? getFunnel({ accountId: account.id, clientId, staff: true }, days) : Promise.resolve(null)]);
   } catch (err) {
     if (!(err instanceof TenantNotConfigured)) throw err;
     noDatabase = true;
@@ -46,7 +48,7 @@ export default async function IndicadoresPage(props: PageProps<"/indicadores">) 
           }
         />
       ) : data?.hasNumbers ? (
-        <IndicatorsView data={data} audience="staff" />
+        <IndicatorsView data={data} audience="staff" funnel={funnel} funnelHint={!clientId} />
       ) : (
         <EmptyState
           icon={<BarChart3 className="h-6 w-6" />}

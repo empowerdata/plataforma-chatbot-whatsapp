@@ -161,3 +161,80 @@ insert into chatbot.meta (key, value)
 values ('schema_version', '4')
 on conflict (key) do update set value = excluded.value, updated_at = now();
 `;
+
+/**
+ * v5: CRM (funil de leads). Um lead é uma pessoa por cliente do aluno (o mesmo
+ * telefone em dois números do mesmo negócio é um lead só) e sobrevive às
+ * conversas: guarda etapa, próxima ação, agendamento, valor e notas. As
+ * etapas são por cliente (vêm de um modelo pelo segmento e podem ser
+ * editadas). `lead_events` é o histórico de cada lead — o funil do período
+ * é calculado a partir dele, então continua certo mesmo se um cartão voltar
+ * de etapa. `client_id` vem do plano de controle (o banco das conversas não
+ * tem a tabela de clientes).
+ *
+ * `suggested_category`: a categoria que o bot sugere; a categoria de verdade
+ * (`category`) é a que uma pessoa confirmou.
+ */
+export const TENANT_SCHEMA_V5 = `
+create table if not exists chatbot.crm_stages (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null,
+  name text not null,
+  kind text not null default 'open',
+  position integer not null default 0,
+  asks_date boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists crm_stages_client_idx on chatbot.crm_stages (client_id, position);
+
+create table if not exists chatbot.leads (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null,
+  phone text not null,
+  name text,
+  stage_id uuid references chatbot.crm_stages (id) on delete set null,
+  interest text,
+  value_cents integer,
+  notes text,
+  next_action_at timestamptz,
+  next_action_note text,
+  appointment_at timestamptz,
+  lost_reason text,
+  source text,
+  last_contact_id uuid,
+  last_inbound_at timestamptz,
+  last_outbound_at timestamptz,
+  created_at timestamptz not null default now(),
+  stage_changed_at timestamptz not null default now(),
+  closed_at timestamptz,
+  unique (client_id, phone)
+);
+create index if not exists leads_client_stage_idx on chatbot.leads (client_id, stage_id, stage_changed_at desc);
+create index if not exists leads_client_next_idx on chatbot.leads (client_id, next_action_at);
+create index if not exists leads_client_appt_idx on chatbot.leads (client_id, appointment_at);
+
+create table if not exists chatbot.lead_events (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid not null references chatbot.leads (id) on delete cascade,
+  type text not null,
+  from_stage uuid,
+  to_stage uuid,
+  actor text,
+  data jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists lead_events_lead_idx on chatbot.lead_events (lead_id, created_at);
+
+alter table chatbot.contacts add column if not exists lead_id uuid;
+create index if not exists messages_contact_created_idx on chatbot.messages (contact_id, created_at desc);
+create index if not exists contacts_lead_idx on chatbot.contacts (lead_id);
+alter table chatbot.conversations add column if not exists suggested_category text;
+
+alter table chatbot.crm_stages enable row level security;
+alter table chatbot.leads enable row level security;
+alter table chatbot.lead_events enable row level security;
+
+insert into chatbot.meta (key, value)
+values ('schema_version', '5')
+on conflict (key) do update set value = excluded.value, updated_at = now();
+`;

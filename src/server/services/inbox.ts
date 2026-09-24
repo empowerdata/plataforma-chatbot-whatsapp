@@ -6,6 +6,7 @@ import type { Contact, Conversation, ConversationListRow } from "../tenant/store
 import { getEvolutionClient } from "../evolution/nodes";
 import { markSent } from "../engine/sent-cache";
 import { isMediaRef, mediaRefFrom } from "../evolution/media-ref";
+import { leadForConversation, moveLeadTo } from "./crm";
 import { getScheduler } from "../engine/scheduler";
 import type { BotConfig } from "@/shared/bot-config";
 import type { NumberSettings } from "@/shared/number-settings";
@@ -192,18 +193,24 @@ function toListItem(r: ConversationListRow, num: ScopeNumber | undefined): Inbox
     lastAt: formatListTime(r.last_message_at),
     numberLabel: num?.label ?? "—",
     clientName: num?.clientName ?? null,
-    category: r.category,
+    category: r.category ?? r.suggested_category,
+    categorySuggested: !r.category && !!r.suggested_category,
     status: statusOf(r.resolved_at != null, r.needs_human, state),
   };
 }
 
 // ------------------------------------------------------------------- detalhe
 
+function leadOf(store: Awaited<ReturnType<typeof getTenantStore>>, num: ScopeNumber, contact: Contact) {
+  return leadForConversation(store, num.clientId, contact, num.label).catch(() => null);
+}
+
 export async function getInboxConversation(scope: InboxScope, conversationId: string): Promise<InboxConversation | null> {
   const loaded = await load(scope, conversationId).catch(() => null);
   if (!loaded) return null;
   const { store, conversation: c, contact, num } = loaded;
-  const messages = await store.listMessages(c.id, 300);
+  // Histórico da pessoa inteiro (atravessa as conversas): quem atende vê o retorno.
+  const [messages, lead] = await Promise.all([store.listContactMessages(contact.id, 300), leadOf(store, num, contact)]);
   const name = contact.name ?? contact.push_name ?? null;
   const bot = computeBotState(num, contact, c);
   return {
@@ -217,6 +224,8 @@ export async function getInboxConversation(scope: InboxScope, conversationId: st
     numberConnected: num.status === "open",
     pauseHoursOnReply: pauseHoursFor(num),
     category: c.category,
+    suggestedCategory: c.category ? null : c.suggested_category,
+    lead: lead?.view ?? null,
     status: statusOf(c.resolved_at != null, c.needs_human, bot),
     resolved: c.resolved_at != null,
     needsHuman: c.needs_human,
@@ -229,7 +238,7 @@ export async function getInboxConversation(scope: InboxScope, conversationId: st
       name: contact.name,
       pushName: contact.push_name,
       phone: formatPhone(contact.phone),
-      notes: contact.notes ?? "",
+      notes: lead?.notes ?? contact.notes ?? "",
       firstSeenAt: formatDateTime(contact.first_seen_at),
       lastSeenAt: formatRelative(contact.last_seen_at),
       isBlocked: contact.is_blocked === true,
@@ -308,10 +317,18 @@ function costLine(m: MessageRow, meta: Record<string, unknown>): string | null {
   return parts.join(" · ");
 }
 
+function gapLabel(ms: number): string {
+  const h = Math.round(ms / 3600_000);
+  if (h < 24) return `${Math.max(1, h)} h`;
+  const d = Math.round(h / 24);
+  return `${d} dia${d === 1 ? "" : "s"}`;
+}
+
 function buildThread(messages: MessageRow[], staff: boolean): InboxThreadItem[] {
   const items: InboxThreadItem[] = [];
   let lastDay: string | null = null;
   let lastBot: Extract<InboxThreadItem, { kind: "message" }> | null = null;
+  let lastConv: { id: string; at: number } | null = null;
   for (const m of messages) {
     const meta = metaOf(m);
     if (m.sender === "system") {
@@ -321,6 +338,9 @@ function buildThread(messages: MessageRow[], staff: boolean): InboxThreadItem[] 
       continue;
     }
     const at = new Date(m.created_at);
+    // A mesma pessoa voltando depois de um tempo: marca onde começou a conversa nova.
+    if (lastConv && m.conversation_id !== lastConv.id) items.push({ kind: "event", id: `conv-${m.conversation_id}`, text: `Voltou a conversar depois de ${gapLabel(at.getTime() - lastConv.at)}` });
+    lastConv = { id: m.conversation_id, at: at.getTime() };
     const key = dayKey(at);
     if (key !== lastDay) {
       items.push({ kind: "day", id: `day-${key}`, label: formatDayLabel(at) });
@@ -502,7 +522,17 @@ export class MediaNotFound extends Error {
 
 export async function saveInboxNotes(scope: InboxScope, id: string, notes: string): Promise<void> {
   const { store, contact } = await load(scope, id);
-  await store.setContactNotes(contact.id, notes.trim().slice(0, 4000) || null);
+  const clean = notes.trim().slice(0, 4000) || null;
+  await store.setContactNotes(contact.id, clean);
+  // As notas moram no lead (a pessoa, não o número); o contato guarda uma cópia.
+  if (contact.lead_id) await store.updateLead(contact.lead_id, { notes: clean });
+}
+
+/** Move a pessoa da conversa de etapa no funil do cliente dono do número. */
+export async function setInboxLeadStage(scope: InboxScope, id: string, stageId: string, extras: { appointmentAt?: string; lostReason?: string }, actor: string): Promise<void> {
+  const { contact, num } = await load(scope, id);
+  if (!num.clientId || !contact.lead_id) throw new Error("Este número não tem cliente, então a pessoa não está em nenhum funil.");
+  await moveLeadTo({ accountId: scope.accountId, clientId: num.clientId, staff: scope.staff }, contact.lead_id, stageId, extras, actor);
 }
 
 export async function renameInboxContact(scope: InboxScope, id: string, name: string): Promise<void> {

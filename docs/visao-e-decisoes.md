@@ -228,7 +228,7 @@ o dia respondendo ali. O que mudou, e por quê:
   arco-íris e não carrega significado), cinza para "sem categoria", e todo
   gráfico com a versão em tabela.
 - **De onde vêm os números.** A série por dia sai das estatísticas
-  agregadas (`daily_stats`), que a limpeza de 30 dias não apaga — por isso o
+  agregadas (`daily_stats`), que a limpeza (hoje opcional) nunca apaga — por isso o
   período de 90 dias funciona. O resto sai das conversas guardadas, e a tela
   avisa quando o período pedido passa do tempo de guarda. O "dia" das
   estatísticas passou a ser o de Brasília: antes era o de UTC, e uma
@@ -263,6 +263,50 @@ WhatsApp. Ficou assim:
   "indisponível"; mídias de antes desta versão continuam só com a etiqueta.
   Áudio e vídeo só baixam quando alguém dá play, para uma conversa cheia de
   áudios não disparar dezenas de downloads.
+
+### CRM: o funil de leads do cliente
+
+Pedido do Lorennzo (2026-09-24), testando como cliente: faltava um lugar
+para gerir os leads de verdade — o que foi resolvido, quem marcou, quem
+ficou de marcar, quem sumiu — e entender o funil (quantos chegaram, quantos
+agendaram, quantos viraram cliente). Pensado para clínica, personal, salão:
+uma camada de gestão, não só de atendimento. O que foi construído e por quê:
+
+- **Lead ≠ conversa.** A conversa é o atendimento do momento; o lead é a
+  pessoa ao longo do tempo, uma por cliente do aluno (o mesmo telefone em
+  dois números do mesmo negócio é um lead só). Guarda etapa, próxima ação,
+  agendamento, interesse, valor, notas e o histórico (`lead_events`).
+- **Funil pronto pelo segmento**, editável pelo cliente e pelo aluno
+  (decisão do Lorennzo): clínica, salão, personal, delivery, loja,
+  imobiliária ou serviços. Cada etapa tem um tipo (em andamento, ganho,
+  perda) e pode "pedir data" — é o tipo, e não o nome, que faz a conversão
+  ser calculada sozinha.
+- **Quem move o quê** — pensado junto com o Lorennzo, que tinha receio de o
+  bot mexer no funil: o resultado (agendou de verdade? compareceu? fechou o
+  plano?) acontece fora do WhatsApp, o bot não enxerga; decidir na segunda
+  mensagem é cedo demais (foi o problema visto na categoria); e cada nicho
+  tem etapas diferentes. Então: o **sistema** só faz o mecânico (a primeira
+  mensagem cria o lead na entrada; o tempo marca "aguardando vocês" e
+  "esfriando"); **pessoas** movem as etapas (agendar pede data e hora,
+  perder pede o motivo); o **bot** não mexe no funil — na fase C ele passa a
+  anotar sinais e sugerir, sempre para uma pessoa aceitar.
+- **Categoria virou sugestão.** O bot deixou de gravar a categoria da
+  conversa; grava uma sugestão (`suggested_category`), que aparece em
+  itálico até uma pessoa confirmar. O que a pessoa escolheu o bot nunca
+  troca. Nos indicadores vale a confirmada ou, na falta, a sugerida.
+- **"Nunca mais respondeu" é um sinal, não uma etapa.** Cada cartão mostra
+  com quem está a bola: "aguardando vocês" (a pessoa falou por último) ou
+  "sem resposta dele há X dias" (esfriando com 3, frio com 7). Mover
+  sozinho para "perdido" confundiria; o filtro "Sem resposta +3 dias" e a
+  tela Hoje deixam isso à vista.
+- **Telas:** Funil (quadro com arrastar, ou lista com mover em lote), ficha
+  do lead (painel lateral), Hoje (agendamentos do dia com "compareceu /
+  faltou", retornos combinados, quem espera resposta, quem esfriou), a etapa
+  dentro da conversa (sem sair do chat) e o funil de vendas nos Indicadores.
+- **O funil do período sai do histórico**: "passou pela etapa" é ter chegado
+  nela ou numa posterior, então um cartão que pulou ou voltou uma etapa não
+  bagunça a conta. Conversas antigas (de antes do CRM) viram leads na
+  entrada do funil na primeira vez que ele abre, em lote.
 
 ### Todo número pertence a um cliente
 
@@ -304,7 +348,7 @@ mais difícil para quem não é técnico. Hoje:
   tabelas pelo painel do Supabase ou manter as conversas fora do servidor.
 - Troca aceita: com o banco no servidor, o backup diário fica no mesmo disco
   (`/var/backups/chatbot`). Vale orientar no curso a copiar para fora (rclone
-  → Google Drive). Com a retenção de 30 dias, o volume é pequeno.
+  → Google Drive). Como é só texto (arquivos não ficam no servidor), o volume cresce devagar.
 
 Eu (Claude) apliquei essa mudança sem perguntar antes, o que não deveria ter
 feito numa premissa documentada. O Lorennzo avaliou os riscos no mesmo dia e
@@ -365,14 +409,20 @@ vira só o resumo em texto — evita gastar tokens de novo a cada rodada. Não �
 testável pelo Simulador (que é só texto); precisa de um WhatsApp real
 conectado.
 
-### Retenção de 30 dias, mas as estatísticas ficam
+### Conversas não são mais apagadas (a limpeza virou opcional)
 
-Conversas e mensagens sem atividade há mais de 30 dias (configurável) são
-apagadas automaticamente no banco de conversas do aluno. As estatísticas agregadas
-(quantas conversas, quantas mensagens por dia) não são apagadas — o gráfico
-da Visão Geral continua funcionando. Motivo: não faz sentido guardar o
-histórico de conversa do cliente final indefinidamente, nem do ponto de
-vista de custo, nem de privacidade.
+No começo, conversas paradas havia 30 dias eram apagadas sozinhas (custo e
+privacidade). Em 2026-09-24 o Lorennzo mudou isso: a pessoa volta semanas
+depois ("quero remarcar", "quero repetir o pedido") e a conversa tinha
+sumido. Hoje nada é apagado por padrão (`CONVERSATION_RETENTION_DAYS=0`);
+quem quiser liga a limpeza com um número de dias. O que continua limitado é
+a memória do bot: ele só lê a conversa atual (depois de 12 h de silêncio
+começa uma nova), então guardar o histórico não deixa o bot mais caro nem
+confuso. Quem atende vê o histórico todo da pessoa na conversa, com uma marca
+"Voltou a conversar depois de X dias". Para LGPD: a ficha do lead tem "Apagar
+lead e histórico" (pedido de exclusão). As estatísticas agregadas nunca foram
+apagadas. É só texto (arquivos não ficam no servidor), então o disco do VPS
+aguenta anos.
 
 ### Fase 0, achados do primeiro teste real (VPS Hostinger, 2026-09-24)
 
@@ -437,7 +487,9 @@ reverificar depois de mexer no código relacionado).
 | Visão em imagens (o bot enxerga a foto, não só um aviso) | sim | não — precisa de WhatsApp real, o Simulador é só texto |
 | Filtro de conversas por categoria/número/humano | sim | sim |
 | Filtro de período na Visão Geral (7/30/90 dias) | não | sim |
-| Limpeza automática de conversas antigas (30 dias) | sim | não (roda uma vez por dia, difícil de observar ao vivo) |
+| Limpeza de conversas antigas (opcional, desligada por padrão) | sim | não (roda uma vez por dia, difícil de observar ao vivo) |
+| CRM: funil por cliente (quadro, lista, ficha, Hoje, funil nos indicadores) | sim (lead pela primeira mensagem, data/motivo obrigatórios, funil pelo histórico, escopo entre clientes) | sim, com 800 leads de teste numa cópia do banco, equipe e cliente, computador e celular |
+| Quem volta a conversar: uma linha só na lista, histórico inteiro com a marca do retorno | sim | sim |
 | Admin: contas, servidores, eventos | parcial | sim |
 | Status de CRM (em aberto/finalizado), independente do status técnico do bot | não | sim |
 | Portal do cliente final (`/portal`): login escopado, conceder acesso, métricas | sim (escopo por cliente) | sim (dois perfis, dados isolados por cliente confirmados ao vivo) |
@@ -462,8 +514,8 @@ reverificar depois de mexer no código relacionado).
   `dados`). É o próximo passo antes de qualquer divulgação.
 - **Termo de uso.** Precisa deixar explícito o que está na tabela de
   responsabilidades acima: software entregue como está, operação é do aluno.
-- **Resumo por contato** (ideia do Lorennzo, 2026-09-24). Como as conversas
-  somem depois de 30 dias, guardar um resumo curto por contato — o que já
+- **Resumo por contato** (ideia do Lorennzo, 2026-09-24; agora parte da fase C
+  do CRM, no lead). Guardar um resumo curto por pessoa — o que já
   pediu, comprou, reclamou, preferências — atualizado sozinho quando cada
   conversa termina, e que sobrevive à limpeza. Serve para a equipe (na
   ficha do contato) e para o bot (lembrar o cliente quando ele volta).
@@ -471,8 +523,7 @@ reverificar depois de mexer no código relacionado).
   chamada do modelo mini por conversa encerrada). Cuidados: não guardar
   dado sensível (em clínica, nada de detalhe de saúde — LGPD), permitir
   editar/apagar, e apagar o resumo de quem não fala há muito tempo (ex.: 12
-  meses). A limpeza de hoje apaga o contato junto com a última conversa;
-  isso muda. O campo `conversations.summary` já existe e nunca foi usado.
+  meses). O campo `conversations.summary` já existe e nunca foi usado.
 - **Google Agenda** (ideia do Lorennzo, 2026-09-24, pensando em clínicas,
   salões, personal trainers). O bot consultaria horários livres e marcaria
   na agenda do cliente final, em vez de só coletar a preferência e passar
@@ -512,11 +563,13 @@ reverificar depois de mexer no código relacionado).
   "não lidas", e talvez um tema claro para
   o portal do cliente (o Daxus Pulse, referência do Lorennzo, é claro; o
   painel hoje é só escuro).
-- **Kanban de leads (mini-CRM).** Ideia do Lorennzo, explicitamente para uma
-  segunda fase. A categorização de conversas e o status aberto/finalizado já
-  construídos são a base de dados que esse Kanban vai usar (cada categoria
-  vira uma coluna) — não vai precisar de retrabalho de schema quando chegar
-  a hora.
+- **CRM, próximas fases.** C: ao fim de cada conversa o bot anota sinais
+  ("quer agendar · terça à tarde", "perguntou o preço", "sem interesse"), com
+  a frase que provou, e sugere interesse e etapa para a equipe aceitar com um
+  clique; resumo por lead (acima); retorno com mensagens prontas; lembrete de
+  consulta na véspera. D: agenda conectada (link iCal), vários atendentes com
+  responsável por lead, reativação automática com limites (cuidado com o
+  risco de bloqueio no WhatsApp não oficial).
 - **Canal oficial do WhatsApp (Cloud API da Meta)** como alternativa ao
   Evolution/Baileys, para quem cresce e quer sair da via não oficial.
 - **Vídeo de demonstração do Playground** para mostrar o produto a um
