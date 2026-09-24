@@ -70,10 +70,29 @@ aplicativos", pode deixar desmarcado — o instalador já cuida do Docker.
 já existe uma instalação e pergunta se você quer só reiniciar/atualizar.
 
 **O painel se atualiza sozinho quando sai uma versão nova?** Não, de
-propósito: você decide quando atualizar. Para atualizar, entre no servidor
-(o mesmo `ssh` do passo 3), cole de novo o comando do passo 4 e responda
-**S** quando ele perguntar se quer reaproveitar a configuração. Ele baixa a
-versão nova e reinicia tudo, sem perder nada.
+propósito: você decide quando atualizar. Veja "Atualizar para uma versão
+nova" abaixo.
+
+## Atualizar para uma versão nova
+
+Leva uns 5 minutos e não apaga nada: conversas, bots, clientes e a conexão
+do WhatsApp continuam como estavam.
+
+1. Abra o terminal do seu computador (no Windows: menu Iniciar → digite
+   "PowerShell" → Enter).
+2. Entre no servidor com o mesmo comando da instalação:
+   `ssh root@SEU-IP` (troque pelo IP do seu servidor). Digite a senha do
+   servidor quando pedir — ela não aparece enquanto você digita.
+3. Cole o comando de instalação de novo e aperte Enter:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/empowerdata/plataforma-chatbot-whatsapp/main/infra/provision.sh | bash
+   ```
+
+4. Quando ele perguntar se quer reaproveitar a configuração, responda **S**.
+   Deve aparecer a linha "Atualizando o projeto para a versão mais recente".
+5. Espere terminar. No fim aparece "Tudo pronto! Seu painel: https://…".
+6. Abra o painel e confira.
 
 **Travei em algum passo.** Tire um print da mensagem e mande para quem te
 passou este guia. Problemas do servidor em si (não conseguir criar a conta,

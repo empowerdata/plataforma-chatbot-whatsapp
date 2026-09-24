@@ -55,6 +55,10 @@ qualquer divulgação para alunos.
   disponível" e mostrar o que mudou. Atualizar sozinho sem o aluno pedir
   foi descartado de propósito: uma versão com problema quebraria todas as
   instalações ao mesmo tempo.
+- Canal "estável" antes de divulgar: hoje o instalador pega sempre o que
+  está no `main`, então qualquer mudança publicada chega na hora a quem
+  instala ou atualiza. Separar um ramo/versão estável (o `main` fica para
+  desenvolvimento) e só promover depois de testar.
 - Ajustes do que a Fase 0 revelar (cliente HTTP do Evolution, tempo real de
   instalação, capacidade real do VPS recomendado).
 - Vídeo/curso mostrando o passo a passo de instalação e o Playground (para
