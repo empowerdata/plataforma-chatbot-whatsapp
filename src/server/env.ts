@@ -77,8 +77,15 @@ function build(): Env {
   }
   const e = parsed.data;
   const isProd = e.NODE_ENV === "production";
-  if (isProd && !e.APP_SECRET) throw new Error("APP_SECRET é obrigatório em produção.");
-  if (isProd && !e.DATABASE_URL) throw new Error("DATABASE_URL é obrigatório em produção.");
+  // `next build` roda com NODE_ENV=production (é o próprio Next que força
+  // isso, não depende do Dockerfile) mas sem os segredos de runtime — no
+  // build multi-estágio (infra/Dockerfile) eles só existem no container em
+  // produção, de propósito, nunca dentro da imagem. Nessa fase o build só
+  // precisa que o módulo carregue sem lançar erro; o valor real chega depois,
+  // no runtime de verdade.
+  const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+  if (isProd && !isBuildPhase && !e.APP_SECRET) throw new Error("APP_SECRET é obrigatório em produção.");
+  if (isProd && !isBuildPhase && !e.DATABASE_URL) throw new Error("DATABASE_URL é obrigatório em produção.");
   const dataDir = path.resolve(/*turbopackIgnore: true*/ process.cwd(), e.DATA_DIR);
   return {
     ...e,
