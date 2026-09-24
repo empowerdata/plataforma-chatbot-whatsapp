@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed) — mas os *.example são
 # modelo público (infra/*.env.example), esses precisam ficar versionados.
 .env*
+# Gerados pelo instalador no servidor, com segredos (APP_SECRET, senhas,
+# chave da Evolution) — não começam com ".env", então precisam de regra própria.
+*.env
 !*.env.example
 
 # vercel

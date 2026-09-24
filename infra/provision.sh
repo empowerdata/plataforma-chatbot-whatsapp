@@ -74,6 +74,11 @@ ufw --force enable >/dev/null 2>&1 || true
 if [ ! -d "$REPO_DIR" ]; then
   info "Baixando o projeto"
   git clone --quiet "$REPO_URL" "$REPO_DIR"
+else
+  # Rodar o instalador de novo é o jeito documentado de atualizar: sem este
+  # pull, ele reconstruía a mesma versão antiga que já estava no servidor.
+  info "Atualizando o projeto para a versão mais recente"
+  git -C "$REPO_DIR" pull --ff-only --quiet || die "Não consegui atualizar o projeto em $REPO_DIR. Veja o que mudou lá dentro com: cd $REPO_DIR && git status"
 fi
 cd "$REPO_DIR/infra"
 

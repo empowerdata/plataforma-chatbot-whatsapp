@@ -323,6 +323,15 @@ ambiente de desenvolvimento. Três bugs reais apareceram, todos bloqueavam
    `NEXT_PHASE=phase-production-build` (o próprio Next seta essa variável
    durante o build) para não exigir os segredos nessa fase específica.
 
+Um quarto bug apareceu na hora de atualizar: rodar o instalador de novo (o
+jeito documentado de atualizar) não baixava a versão nova — ele só clonava
+o projeto se a pasta não existisse, e reconstruía o código antigo. Agora ele
+faz `git pull` quando a pasta já existe. Também ficou decidido que **não
+existe atualização automática**: o aluno decide quando atualizar, porque uma
+versão com problema, puxada sozinha, quebraria todas as instalações ao
+mesmo tempo. (E os arquivos com segredos que o instalador gera no servidor,
+`infra/app.env` e `infra/evolution.env`, passaram a ficar fora do git.)
+
 Isso confirma exatamente por que a Fase 0 existe antes de qualquer
 divulgação: são bugs que nenhum teste automatizado neste repositório
 pegaria (dependem de Docker, de um GitHub real, de `next build` de verdade),

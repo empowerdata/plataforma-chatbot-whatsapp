@@ -69,6 +69,12 @@ aplicativos", pode deixar desmarcado — o instalador já cuida do Docker.
 **Se eu rodar o comando de novo, quebra alguma coisa?** Não. Ele percebe que
 já existe uma instalação e pergunta se você quer só reiniciar/atualizar.
 
+**O painel se atualiza sozinho quando sai uma versão nova?** Não, de
+propósito: você decide quando atualizar. Para atualizar, entre no servidor
+(o mesmo `ssh` do passo 3), cole de novo o comando do passo 4 e responda
+**S** quando ele perguntar se quer reaproveitar a configuração. Ele baixa a
+versão nova e reinicia tudo, sem perder nada.
+
 **Travei em algum passo.** Tire um print da mensagem e mande para quem te
 passou este guia. Problemas do servidor em si (não conseguir criar a conta,
 cartão recusado) são com o suporte da empresa do VPS, não da Daxus.

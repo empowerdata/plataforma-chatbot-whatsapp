@@ -50,7 +50,7 @@ conversas já sobe pronto junto (serviço `dados`); Supabase é opcional.
 | Diário (automático) | Backup dos dois bancos (`postgres` e `dados`) em `/var/backups/chatbot` (14 dias). Copie para fora do VPS (rclone → Google Drive/S3) — hoje o backup fica no mesmo disco do servidor. |
 | Semanal | `docker compose -f infra/docker-compose.yml --env-file infra/.env ps` e olhar **Admin → Eventos** dentro do painel (erros). |
 | WhatsApp quebrou (números caindo, QR não conecta) | Atualizar a Evolution: `docker compose -f infra/docker-compose.yml pull evolution && docker compose -f infra/docker-compose.yml --env-file infra/.env up -d evolution`. Antes, olhe as notas da versão em github.com/EvolutionAPI/evolution-api/releases. |
-| Atualizar o painel | `cd /opt/chatbot && git pull && docker compose -f infra/docker-compose.yml --env-file infra/.env up -d --build` (migrations rodam sozinhas; serviços novos, como o `dados`, sobem sozinhos). |
+| Atualizar o painel | Rodar o instalador de novo e responder **S** (faz `git pull` e reconstrói), ou à mão: `cd /opt/chatbot && git pull && docker compose -f infra/docker-compose.yml --env-file infra/.env up -d --build`. Migrations rodam sozinhas; serviços novos, como o `dados`, sobem sozinhos. Não há atualização automática: é o aluno quem decide quando. |
 | Quer mais de um servidor Evolution (crescer capacidade) | Subir outro VPS só com Evolution e cadastrar em Admin → Servidores — o restante da arquitetura (`evolution_nodes`, `pickNode()`) já foi pensado para múltiplos servidores por conta, mesmo numa instalação de conta única. |
 
 ## Dimensionamento

@@ -50,6 +50,11 @@ qualquer divulgação para alunos.
 ## Fase 1 — piloto com alunos de verdade
 
 - Termo de uso (deixar explícito: instalação e operação são do aluno).
+- Atualizar sem terminal: hoje o aluno cola o comando do instalador de novo
+  (ele baixa a versão nova e reinicia). Ideia: o painel avisar "nova versão
+  disponível" e mostrar o que mudou. Atualizar sozinho sem o aluno pedir
+  foi descartado de propósito: uma versão com problema quebraria todas as
+  instalações ao mesmo tempo.
 - Ajustes do que a Fase 0 revelar (cliente HTTP do Evolution, tempo real de
   instalação, capacidade real do VPS recomendado).
 - Vídeo/curso mostrando o passo a passo de instalação e o Playground (para
@@ -71,10 +76,19 @@ qualquer divulgação para alunos.
 
 - Caixa de entrada, próximos passos: respostas rápidas (atalho "/"), enviar
   arquivo/áudio pelo painel, "não lidas", talvez tema claro no portal.
-- **Google Agenda** para clínicas, salões e personal trainers: consultar
-  horários livres e marcar pelo bot. O próprio cliente final clica em
-  "Conectar com Google"; o aluno só registra o app do Google uma vez. Ver
-  avaliação e ressalvas em `docs/visao-e-decisoes.md`.
+- **Agenda (Google Agenda e afins)** para clínicas, salões e personal
+  trainers, em etapas:
+  1. **Link secreto iCal** (recomendado para começar): o cliente cola o
+     "Endereço secreto no formato iCal" da agenda no portal; o bot lê os
+     horários ocupados, sugere os livres e passa o horário escolhido para a
+     equipe confirmar. Nada para o aluno configurar.
+  2. **Marcação automática**, por um destes: Cal.com com chave de API (o
+     cliente conecta o Google lá dentro) ou botão "Conectar com Google" (o
+     aluno registra o app do Google uma vez; ressalvas de app não verificado
+     e domínio próprio).
+  3. Remarcar/cancelar e lembretes.
+  Alternativas avaliadas (agenda própria na plataforma, conta de serviço)
+  e ressalvas em `docs/visao-e-decisoes.md`.
 - **Kanban de leads (mini-CRM)**, usando a categorização de conversas e o
   status aberto/finalizado já construídos como base — cada categoria pode
   virar uma coluna, sem retrabalho de schema.
