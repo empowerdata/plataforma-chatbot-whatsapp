@@ -233,6 +233,39 @@ da Visão Geral continua funcionando. Motivo: não faz sentido guardar o
 histórico de conversa do cliente final indefinidamente, nem do ponto de
 vista de custo, nem de privacidade.
 
+### Fase 0, achados do primeiro teste real (VPS Hostinger, 2026-09-24)
+
+O Lorennzo contratou um VPS de verdade (Hostinger, KVM1, Ubuntu 24.04 LTS) e
+rodou o instalador ao vivo — a primeira vez que isso aconteceu fora deste
+ambiente de desenvolvimento. Dois bugs reais apareceram, os dois bloqueavam
+100% das instalações (não eram falha de configuração dele):
+
+1. **O repositório estava privado.** `curl` para um arquivo bruto de
+   repositório privado no GitHub sempre devolve 404 para quem não está
+   autenticado — o instalador nunca teria funcionado para nenhum aluno.
+   Decisão tomada ali: deixar o repositório **público**. O modelo de negócio
+   já era vender o produto pronto + curso + suporte, não esconder o código;
+   a alternativa (token de acesso distribuído a cada aluno) seria bem mais
+   frágil de operar e ainda vaza do mesmo jeito.
+2. **`REPO_URL` em `provision.sh` nunca tinha saído do placeholder de
+   template** (`SEU-USUARIO/SEU-REPO`) — todo `git clone` ia travar pedindo
+   login. Corrigido para a URL real.
+3. **O build de produção (`next build`, usado dentro do `Dockerfile`)
+   quebrava sempre**, mesmo com o repositório certo: `next build` roda com
+   `NODE_ENV=production` (o próprio Next força isso, independente do
+   Dockerfile), e `src/server/env.ts` exigia `APP_SECRET`/`DATABASE_URL`
+   assim que qualquer rota fosse importada durante a coleta de dados de
+   página — mas esses segredos só existem no container em produção, nunca
+   dentro da imagem, de propósito (não fazia sentido embutir segredo em
+   camada de imagem Docker). Corrigido checando
+   `NEXT_PHASE=phase-production-build` (o próprio Next seta essa variável
+   durante o build) para não exigir os segredos nessa fase específica.
+
+Isso confirma exatamente por que a Fase 0 existe antes de qualquer
+divulgação: são bugs que nenhum teste automatizado neste repositório
+pegaria (dependem de Docker, de um GitHub real, de `next build` de verdade),
+só apareceram rodando a instalação de ponta a ponta pela primeira vez.
+
 ## O que já está pronto (e como foi verificado)
 
 A tabela abaixo distingue "testado automaticamente" (roda em `npm test`,
@@ -258,7 +291,7 @@ reverificar depois de mexer no código relacionado).
 | Admin: contas, servidores, eventos | parcial | sim |
 | Status de CRM (em aberto/finalizado), independente do status técnico do bot | não | sim |
 | Portal do cliente final (`/portal`): login escopado, conceder acesso, categorizar, finalizar/reabrir, métricas | não | sim (dois perfis, dados isolados por cliente confirmados ao vivo) |
-| Instalador do VPS (`infra/provision.sh`) | lógica isolada testada | **não** — precisa de um VPS real |
+| Instalador do VPS (`infra/provision.sh`) | lógica isolada testada | em andamento — teste real na Hostinger (2026-09-24) já achou e corrigiu 2 bugs que bloqueavam 100% das instalações (ver abaixo) |
 | `render.yaml` (instalação no Render) | validado contra o schema oficial | **sim**, uma vez, ao vivo (custo real medido) |
 
 ## O que ainda não existe (backlog consciente, não esquecido)
