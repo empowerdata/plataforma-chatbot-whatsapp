@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Bell, Bot, Check, CheckCircle2, ChevronDown, Hand, PanelRight, Plus, RotateCcw, SendHorizontal, Tag, User, X } from "lucide-react";
-import { Badge, Button } from "@/components/ui/primitives";
+import { ArrowLeft, Ban, Bell, Bot, Check, CheckCircle2, ChevronDown, Copy, MoreHorizontal, PanelRight, Plus, RotateCcw, SendHorizontal, ShieldCheck, Tag, User, X } from "lucide-react";
+import { Button } from "@/components/ui/primitives";
 import { useDialogs } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { Avatar, MenuItem, Popover, botDot, botExplanation, botLabel } from "./parts";
+import { Avatar, MenuItem, MenuLabel, MenuSeparator, Popover, StatusLabel, botExplanation, botLabel } from "./parts";
 import type { ActionResult, BotState, InboxActions, InboxConversation, InboxThreadItem } from "./types";
 
 type Audience = "staff" | "client";
@@ -30,6 +30,7 @@ export function ConversationPane({
   onChanged: () => void;
 }) {
   const toast = useToast();
+  const { confirmDialog } = useDialogs();
   const [busy, setBusy] = React.useState<string | null>(null);
 
   const run = React.useCallback(
@@ -53,46 +54,102 @@ export function ConversationPane({
 
   const setBot = (enabled: boolean) => run("bot", () => actions.setBot(c.id, enabled), enabled ? "Bot ligado nesta conversa." : "Bot desligado nesta conversa.");
   const toggleResolved = () => run("resolved", () => actions.setResolved(c.id, !c.resolved), c.resolved ? "Conversa reaberta." : "Conversa finalizada.");
+  const setBlocked = async (blocked: boolean) => {
+    if (blocked) {
+      const ok = await confirmDialog("O bot deixa de responder este contato e nenhuma automação roda para ele. Dá para desbloquear quando quiser.", { title: "Bloquear este contato?", destructive: true, confirmLabel: "Bloquear" });
+      if (!ok) return;
+    }
+    void run("block", () => actions.setBlocked(c.id, blocked), blocked ? "Contato bloqueado." : "Contato desbloqueado.");
+  };
+  const origin = c.clientName && audience === "staff" ? `${c.clientName} · ${c.numberLabel}` : c.numberLabel;
+  const categoryMenu = (
+    <CategoryMenu category={c.category} categories={categories} busy={busy === "category"} onChange={(value) => run("category", () => actions.setCategory(c.id, value), value ? "Categoria atualizada." : "Categoria removida.")} />
+  );
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
-      <header className="flex items-center gap-3 border-b border-border bg-surface-1 px-3 py-2.5 sm:px-4">
-        <button type="button" onClick={onBack} className="rounded-md p-1.5 text-muted hover:bg-surface-2 hover:text-foreground md:hidden" aria-label="Voltar para a lista">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <header className="flex h-[60px] shrink-0 items-center gap-3 border-b border-border bg-surface-1 px-3 sm:px-4">
+        <button type="button" onClick={onBack} className="-ml-1 rounded-md p-1.5 text-muted hover:bg-surface-2 hover:text-foreground md:hidden" aria-label="Voltar para a lista">
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <Avatar initials={c.initials} bot={botDot(c.bot)} />
+        <Avatar initials={c.initials} status={c.status} size="md" />
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-semibold text-foreground">{c.title}</h2>
-          <div className="truncate text-xs text-muted">
-            {c.phone} · {c.numberLabel}
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="truncate text-sm font-semibold text-foreground">{c.title}</h2>
+            <div className="hidden shrink-0 sm:block">{categoryMenu}</div>
+          </div>
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11.5px] text-muted">
+            <StatusLabel status={c.status} className="shrink-0" />
+            <span className="hidden text-subtle sm:inline">·</span>
+            <span className="hidden truncate sm:inline">
+              {c.phone} · {origin}
+            </span>
           </div>
         </div>
         <BotSwitch state={c.bot} audience={audience} busy={busy === "bot"} onChange={setBot} />
-        <Button size="sm" variant={c.resolved ? "outline" : "secondary"} loading={busy === "resolved"} onClick={toggleResolved} title={c.resolved ? "Reabrir conversa" : "Marcar como finalizada"}>
+        <Button size="sm" variant={c.resolved ? "outline" : "secondary"} loading={busy === "resolved"} onClick={toggleResolved} className="h-8" title={c.resolved ? "Reabrir conversa" : "Marcar como finalizada"}>
           {busy === "resolved" ? null : c.resolved ? <RotateCcw className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
           <span className="hidden sm:inline">{c.resolved ? "Reabrir" : "Finalizar"}</span>
         </Button>
-        <button type="button" onClick={onToggleContact} className="rounded-md p-1.5 text-muted hover:bg-surface-2 hover:text-foreground 2xl:hidden" aria-label="Ver contato">
-          <PanelRight className="h-4 w-4" />
-        </button>
+        <Popover
+          align="end"
+          trigger={({ toggle }) => (
+            <button type="button" onClick={toggle} className="rounded-md p-1.5 text-muted hover:bg-surface-2 hover:text-foreground" aria-label="Mais ações">
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+          )}
+        >
+          {(close) => (
+            <>
+              <MenuItem
+                onClick={() => {
+                  close();
+                  onToggleContact();
+                }}
+              >
+                <PanelRight className="h-3.5 w-3.5 text-muted" /> Ficha do contato
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  close();
+                  void navigator.clipboard.writeText(c.phone.replace(/\D/g, "")).then(() => toast.success("Telefone copiado."));
+                }}
+              >
+                <Copy className="h-3.5 w-3.5 text-muted" /> Copiar telefone
+              </MenuItem>
+              <MenuSeparator />
+              {c.contact.isBlocked ? (
+                <MenuItem
+                  onClick={() => {
+                    close();
+                    void setBlocked(false);
+                  }}
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 text-muted" /> Desbloquear contato
+                </MenuItem>
+              ) : (
+                <MenuItem
+                  tone="danger"
+                  onClick={() => {
+                    close();
+                    void setBlocked(true);
+                  }}
+                >
+                  <Ban className="h-3.5 w-3.5" /> Bloquear contato
+                </MenuItem>
+              )}
+            </>
+          )}
+        </Popover>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-1 px-3 py-2 sm:px-4">
-        {c.resolved ? (
-          <Badge tone="success">
-            <CheckCircle2 className="h-3 w-3" /> Finalizada
-          </Badge>
-        ) : null}
-        <CategoryMenu category={c.category} categories={categories} busy={busy === "category"} onChange={(value) => run("category", () => actions.setCategory(c.id, value), value ? "Categoria atualizada." : "Categoria removida.")} />
-        {c.needsHuman ? (
-          <Badge tone="warning">
-            <Hand className="h-3 w-3" /> Precisa de você
-          </Badge>
-        ) : null}
-        {c.needsHuman && c.handoffReason ? <span className="truncate text-xs text-muted">“{c.handoffReason}”</span> : null}
+      {/* No celular o cabeçalho só cabe nome e situação; categoria e telefone descem para esta faixa. */}
+      <div className="flex min-w-0 items-center gap-2 border-b border-border bg-surface-1 px-3 py-1.5 text-[11.5px] text-muted sm:hidden">
+        {categoryMenu}
+        <span className="truncate">{c.phone}</span>
       </div>
 
-      <BotBanner conversation={c} audience={audience} busy={busy} onResume={() => setBot(true)} onUnblock={() => run("block", () => actions.setBlocked(c.id, false), "Contato desbloqueado.")} />
+      <BotNotice conversation={c} audience={audience} busy={busy} onResume={() => setBot(true)} onUnblock={() => void setBlocked(false)} />
 
       <Thread conversation={c} actions={actions} onChanged={onChanged} />
     </section>
@@ -109,42 +166,43 @@ function BotSwitch({ state, audience, busy, onChange }: { state: BotState; audie
       type="button"
       role="switch"
       aria-checked={on}
+      aria-label={botLabel(state)}
       disabled={locked || busy}
       onClick={() => onChange(!on)}
-      title={botExplanation(state, audience)}
-      className={cn(
-        "inline-flex h-8 shrink-0 items-center gap-2 rounded-full border px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-        on ? "border-success/30 bg-success-soft text-success hover:bg-success/20" : state.kind === "paused" ? "border-warning/30 bg-warning-soft text-warning hover:bg-warning/20" : "border-border-strong bg-surface-2 text-muted hover:text-foreground",
-      )}
+      title={`${botLabel(state)}. ${botExplanation(state, audience)}`}
+      className="inline-flex h-8 shrink-0 items-center gap-2 rounded-md border border-border px-2.5 text-xs font-medium text-muted transition-colors hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
     >
-      <span className={cn("relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors", on ? "bg-success" : "border border-border-strong bg-surface-3")}>
-        <span className={cn("absolute h-3 w-3 rounded-full bg-white shadow transition-transform duration-200", on ? "translate-x-3.5" : "translate-x-0.5")} />
+      <Bot className={cn("h-3.5 w-3.5", on ? "text-success" : state.kind === "paused" ? "text-warning" : "text-subtle")} />
+      <span className="hidden lg:inline">Bot</span>
+      <span className={cn("relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors", on ? "bg-success" : "bg-surface-3 ring-1 ring-inset ring-border-strong")}>
+        <span className={cn("absolute h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-200", on ? "translate-x-3.5" : "translate-x-0.5")} />
       </span>
-      <span className="hidden sm:inline">{botLabel(state)}</span>
     </button>
   );
 }
 
-function BotBanner({ conversation: c, audience, busy, onResume, onUnblock }: { conversation: InboxConversation; audience: Audience; busy: string | null; onResume: () => void; onUnblock: () => void }) {
+/** Aviso fino, só quando o bot não está respondendo — sempre com o motivo e o que fazer. */
+function BotNotice({ conversation: c, audience, busy, onResume, onUnblock }: { conversation: InboxConversation; audience: Audience; busy: string | null; onResume: () => void; onUnblock: () => void }) {
   const s = c.bot;
   if (s.kind === "active") return null;
-  const warn = s.kind === "paused";
+  const waiting = c.status === "aguardando";
+  const text = waiting && c.handoffReason ? `${botExplanation(s, audience)} Motivo: “${c.handoffReason}”.` : botExplanation(s, audience);
   return (
-    <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2 text-xs sm:px-4", warn ? "border-warning/20 bg-warning-soft text-foreground/90" : "border-border bg-surface-2 text-muted")}>
-      <Bot className={cn("h-3.5 w-3.5 shrink-0", warn ? "text-warning" : "text-subtle")} />
-      <span className="min-w-0 flex-1">{botExplanation(s, audience)}</span>
+    <div className={cn("flex shrink-0 items-center gap-3 border-b px-4 py-2 text-xs", waiting ? "border-warning/20 bg-warning-soft/70" : "border-border bg-surface-1/60")}>
+      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", waiting || s.kind === "paused" ? "bg-warning" : "bg-subtle")} />
+      <span className="min-w-0 flex-1 leading-relaxed text-foreground/80">{text}</span>
       {s.kind === "paused" || s.kind === "off" ? (
-        <Button size="sm" variant="outline" loading={busy === "bot"} onClick={onResume} className="h-7">
-          {s.kind === "paused" ? "Reativar agora" : "Ligar o bot"}
-        </Button>
+        <button type="button" disabled={busy === "bot"} onClick={onResume} className="shrink-0 font-medium text-accent hover:underline disabled:opacity-50">
+          {s.kind === "paused" ? "Devolver ao bot" : "Ligar o bot"}
+        </button>
       ) : null}
       {s.kind === "blocked" ? (
-        <Button size="sm" variant="outline" loading={busy === "block"} onClick={onUnblock} className="h-7">
+        <button type="button" disabled={busy === "block"} onClick={onUnblock} className="shrink-0 font-medium text-accent hover:underline disabled:opacity-50">
           Desbloquear
-        </Button>
+        </button>
       ) : null}
       {audience === "staff" && (s.kind === "number_off" || s.kind === "no_bot") ? (
-        <Link href={`/numeros/${c.numberId}`} className="font-medium text-accent hover:underline">
+        <Link href={`/numeros/${c.numberId}`} className="shrink-0 font-medium text-accent hover:underline">
           Abrir o número
         </Link>
       ) : null}
@@ -165,19 +223,20 @@ function CategoryMenu({ category, categories, busy, onChange }: { category: stri
           onClick={toggle}
           disabled={busy}
           className={cn(
-            "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs transition-colors disabled:opacity-60",
-            category ? "border-border-strong bg-surface-2 text-foreground" : "border-dashed border-border-strong text-muted hover:text-foreground",
-            open && "border-accent/50",
+            "inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium transition-colors disabled:opacity-60",
+            category ? "bg-surface-3/80 text-foreground/80 hover:text-foreground" : "text-subtle hover:bg-surface-2 hover:text-foreground",
+            open && "bg-surface-3 text-foreground",
           )}
         >
           <Tag className="h-3 w-3" />
           {category ?? "Categorizar"}
-          <ChevronDown className="h-3 w-3 text-subtle" />
+          <ChevronDown className="h-3 w-3 opacity-60" />
         </button>
       )}
     >
       {(close) => (
         <div className="max-h-72 overflow-y-auto">
+          <MenuLabel>Categoria</MenuLabel>
           {options.length ? (
             options.map((opt) => (
               <MenuItem
@@ -189,13 +248,13 @@ function CategoryMenu({ category, categories, busy, onChange }: { category: stri
                 }}
               >
                 <span className="flex-1 truncate">{opt}</span>
-                {opt === category ? <Check className="h-3.5 w-3.5" /> : null}
+                {opt === category ? <Check className="h-3.5 w-3.5 text-accent" /> : null}
               </MenuItem>
             ))
           ) : (
-            <p className="px-3 py-2 text-xs text-muted">Nenhuma categoria usada ainda.</p>
+            <p className="px-2.5 py-1.5 text-xs text-muted">Nenhuma categoria usada ainda.</p>
           )}
-          <div className="my-1 h-px bg-border" />
+          <MenuSeparator />
           <MenuItem
             onClick={async () => {
               close();
@@ -207,13 +266,12 @@ function CategoryMenu({ category, categories, busy, onChange }: { category: stri
           </MenuItem>
           {category ? (
             <MenuItem
-              tone="danger"
               onClick={() => {
                 close();
                 onChange(null);
               }}
             >
-              <X className="h-3.5 w-3.5" /> Remover categoria
+              <X className="h-3.5 w-3.5 text-muted" /> Remover categoria
             </MenuItem>
           ) : null}
         </div>
@@ -225,6 +283,7 @@ function CategoryMenu({ category, categories, busy, onChange }: { category: stri
 // ------------------------------------------------------------ conversa + composer
 
 type Pending = { key: string; text: string };
+type MessageItem = Extract<InboxThreadItem, { kind: "message" }>;
 
 function Thread({ conversation: c, actions, onChanged }: { conversation: InboxConversation; actions: InboxActions; onChanged: () => void }) {
   const toast = useToast();
@@ -236,21 +295,37 @@ function Thread({ conversation: c, actions, onChanged }: { conversation: InboxCo
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
 
   // A mensagem otimista some assim que a versão de verdade chega na próxima atualização.
-  React.useEffect(() => {
-    if (!pending.length) return;
+  const shownPending = React.useMemo(() => {
+    if (!pending.length) return pending;
     const sent = new Set(
       c.thread
         .slice(-20)
-        .filter((i): i is Extract<InboxThreadItem, { kind: "message" }> => i.kind === "message" && i.sender === "human")
+        .filter((i): i is MessageItem => i.kind === "message" && i.sender === "human")
         .map((i) => i.body),
     );
-    setPending((p) => p.filter((m) => !sent.has(m.text)));
-  }, [c.thread, pending.length]);
+    return pending.filter((m) => !sent.has(m.text));
+  }, [c.thread, pending]);
+
+  // Rótulo de quem falou só no começo de cada sequência (separador de dia ou aviso reinicia).
+  const groupStarts = React.useMemo(() => {
+    const starts = new Set<string>();
+    let prev: string | null = null;
+    for (const item of c.thread) {
+      if (item.kind !== "message") {
+        prev = null;
+        continue;
+      }
+      const k = `${item.sender}:${item.author ?? ""}`;
+      if (k !== prev) starts.add(item.id);
+      prev = k;
+    }
+    return starts;
+  }, [c.thread]);
 
   React.useLayoutEffect(() => {
     const el = scrollRef.current;
     if (el && atBottom.current) el.scrollTop = el.scrollHeight;
-  }, [c.thread.length, pending.length]);
+  }, [c.thread.length, shownPending.length]);
 
   const canSend = c.numberConnected && !c.contact.isBlocked;
 
@@ -278,8 +353,6 @@ function Thread({ conversation: c, actions, onChanged }: { conversation: InboxCo
     }
   }
 
-  let prevSender: string | null = null;
-
   return (
     <>
       <div
@@ -288,109 +361,107 @@ function Thread({ conversation: c, actions, onChanged }: { conversation: InboxCo
           const el = e.currentTarget;
           atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
         }}
-        className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_1px_1px,rgba(230,237,243,0.035)_1px,transparent_0)] bg-[length:18px_18px] px-3 py-4 sm:px-6"
+        className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-8"
       >
         <div className="mx-auto flex max-w-3xl flex-col">
-          {c.thread.length === 0 && !pending.length ? <p className="py-16 text-center text-sm text-muted">Nenhuma mensagem nesta conversa ainda.</p> : null}
+          {c.thread.length === 0 && !shownPending.length ? <p className="py-16 text-center text-[13px] text-muted">Nenhuma mensagem nesta conversa ainda.</p> : null}
           {c.thread.map((item) => {
             if (item.kind === "day") {
-              prevSender = null;
               return (
-                <div key={item.id} className="flex justify-center py-3">
-                  <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-muted">{item.label}</span>
+                <div key={item.id} className="flex items-center gap-3 py-3">
+                  <span className="h-px flex-1 bg-border" />
+                  <span className="text-[11px] font-medium text-subtle">{item.label}</span>
+                  <span className="h-px flex-1 bg-border" />
                 </div>
               );
             }
             if (item.kind === "event") {
-              prevSender = null;
               return (
                 <div key={item.id} className="flex justify-center py-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/25 bg-warning-soft px-3 py-1 text-[11px] text-warning">
-                    <Bell className="h-3 w-3" /> {item.text}
+                  <span className="inline-flex items-center gap-1.5 text-[11px] text-muted">
+                    <Bell className="h-3 w-3 text-warning" /> {item.text}
                   </span>
                 </div>
               );
             }
-            const grouped = prevSender === item.sender;
-            prevSender = item.sender;
-            return <Bubble key={item.id} item={item} grouped={grouped} />;
+            return <Bubble key={item.id} item={item} first={groupStarts.has(item.id)} />;
           })}
-          {pending.map((p) => (
-            <div key={p.key} className="mt-2 flex justify-end">
-              <div className="max-w-[78%] rounded-2xl rounded-br-md bg-wa-out/60 px-3 py-2 text-sm text-white/80">
-                <div className="whitespace-pre-wrap break-words">{p.text}</div>
-                <div className="mt-1 text-right text-[10px] text-white/50">enviando…</div>
+          {shownPending.map((p) => (
+            <div key={p.key} className="mt-0.5 flex justify-end">
+              <div className="max-w-[min(34rem,78%)] rounded-xl bg-bubble-team/60 px-3 py-1.5 text-[13.5px] leading-[1.45] text-foreground/70">
+                <span className="whitespace-pre-wrap break-words">{p.text}</span>
+                <span className="ml-2 text-[10px] text-subtle">enviando…</span>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="border-t border-border bg-surface-1 px-3 py-3 sm:px-4">
+      <div className="shrink-0 border-t border-border bg-surface-1 px-3 pb-3 pt-2.5 sm:px-4">
         {!c.numberConnected ? <p className="mx-auto mb-2 max-w-3xl text-xs text-warning">O WhatsApp deste número está desconectado — reconecte para voltar a enviar mensagens.</p> : null}
         <form
-          className="mx-auto flex max-w-3xl items-end gap-2"
+          className="mx-auto flex max-w-3xl items-end gap-2 rounded-xl border border-border bg-background py-1.5 pl-3.5 pr-1.5 transition-colors focus-within:border-accent/50"
           onSubmit={(e) => {
             e.preventDefault();
             void send();
           }}
         >
-          <div className="flex-1 rounded-xl border border-border bg-background px-3 py-2 transition-colors focus-within:border-accent/60 focus-within:ring-2 focus-within:ring-accent/20">
-            <textarea
-              ref={inputRef}
-              rows={1}
-              value={text}
-              disabled={!canSend}
-              onChange={(e) => {
-                setText(e.target.value);
-                e.target.style.height = "auto";
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  void send();
-                }
-              }}
-              placeholder={c.contact.isBlocked ? "Contato bloqueado" : c.numberConnected ? "Escreva uma mensagem…" : "WhatsApp desconectado"}
-              className="block max-h-40 w-full resize-none bg-transparent text-sm leading-6 text-foreground placeholder:text-subtle focus:outline-none disabled:cursor-not-allowed"
-            />
-          </div>
-          <Button type="submit" size="icon" className="h-10 w-10 shrink-0 rounded-xl" disabled={!text.trim() || !canSend} loading={sending} aria-label="Enviar">
-            {sending ? null : <SendHorizontal className="h-4 w-4" />}
-          </Button>
+          <textarea
+            ref={inputRef}
+            rows={1}
+            value={text}
+            disabled={!canSend}
+            onChange={(e) => {
+              setText(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+            placeholder={c.contact.isBlocked ? "Contato bloqueado" : c.numberConnected ? "Escreva uma mensagem…" : "WhatsApp desconectado"}
+            className="my-1 block max-h-40 min-w-0 flex-1 resize-none bg-transparent text-[13.5px] leading-6 text-foreground placeholder:text-subtle focus:outline-none disabled:cursor-not-allowed"
+          />
+          <button
+            type="submit"
+            disabled={!text.trim() || !canSend || sending}
+            aria-label="Enviar"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground transition-colors hover:bg-accent-strong disabled:bg-surface-3 disabled:text-subtle"
+          >
+            <SendHorizontal className="h-4 w-4" />
+          </button>
         </form>
-        <p className="mx-auto mt-1.5 max-w-3xl text-[11px] text-subtle">
-          Enter envia · Shift+Enter quebra linha
-          {c.bot.kind === "active" && c.pauseHoursOnReply > 0 ? ` · ao responder, o bot pausa nesta conversa por ${c.pauseHoursOnReply}h` : ""}
+        <p className="mx-auto mt-1.5 max-w-3xl px-1 text-[11px] text-subtle">
+          Enter envia · Shift+Enter quebra a linha
+          {c.bot.kind === "active" && c.pauseHoursOnReply > 0 ? ` · ao responder, o bot pausa por ${c.pauseHoursOnReply}h nesta conversa` : ""}
         </p>
       </div>
     </>
   );
 }
 
-function Bubble({ item, grouped }: { item: Extract<InboxThreadItem, { kind: "message" }>; grouped: boolean }) {
+function Bubble({ item, first }: { item: MessageItem; first: boolean }) {
   const mine = item.sender !== "contact";
+  const tone = item.sender === "bot" ? "bg-bubble-bot" : item.sender === "human" ? "bg-bubble-team" : "bg-bubble-in";
   return (
-    <div className={cn("flex", mine ? "justify-end" : "justify-start", grouped ? "mt-0.5" : "mt-2.5")}>
-      <div className={cn("max-w-[78%] rounded-2xl px-3 py-2 text-sm shadow-sm", mine ? "bg-wa-out text-white" : "bg-wa-in text-foreground", !grouped && (mine ? "rounded-br-md" : "rounded-bl-md"))}>
-        {!grouped && item.sender === "bot" ? (
-          <div className="mb-0.5 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-white/65">
-            <Bot className="h-3 w-3" /> Bot
-          </div>
-        ) : null}
-        {!grouped && item.sender === "human" ? (
-          <div className="mb-0.5 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-white/65">
-            <User className="h-3 w-3" /> {item.author}
-          </div>
-        ) : null}
-        <div className="whitespace-pre-wrap break-words">{item.body}</div>
-        <div className={cn("mt-1 text-right text-[10px]", mine ? "text-white/55" : "text-muted")}>
-          {item.offHours ? "fora do horário · " : ""}
-          {item.time}
-        </div>
-        {item.meta ? <div className="mt-1 border-t border-white/10 pt-1 text-[10px] text-white/45">{item.meta}</div> : null}
+    <div className={cn("flex flex-col", mine ? "items-end" : "items-start", first ? "mt-3" : "mt-0.5")}>
+      {first && mine ? (
+        <span className="mb-1 inline-flex items-center gap-1 px-1 text-[11px] text-subtle">
+          {item.sender === "bot" ? <Bot className="h-3 w-3 text-success" /> : <User className="h-3 w-3 text-info" />}
+          {item.sender === "bot" ? "Bot" : item.author}
+          {item.offHours ? " · fora do horário" : ""}
+        </span>
+      ) : null}
+      <div className={cn("relative max-w-[min(34rem,78%)] rounded-xl px-3 py-1.5 text-[13.5px] leading-[1.45] text-foreground", tone, first && (mine ? "rounded-tr-sm" : "rounded-tl-sm"))}>
+        <span className="whitespace-pre-wrap break-words">{item.body}</span>
+        {/* Reserva espaço na última linha para o horário, como no WhatsApp. */}
+        <span className="invisible inline-block w-10" aria-hidden />
+        <span className="absolute bottom-1 right-2.5 text-[10px] tabular-nums text-muted">{item.time}</span>
       </div>
+      {item.meta ? <span className="mt-1 px-1 text-[10.5px] text-subtle">{item.meta}</span> : null}
     </div>
   );
 }

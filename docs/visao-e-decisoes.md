@@ -141,8 +141,8 @@ o menu:
    equipe) rejeitam explicitamente `role === "client"`, redirecionando para
    `/portal`. Um login de cliente nunca alcança uma página ou server action
    do painel da equipe, mesmo se souber a URL.
-2. A caixa de entrada (`src/server/services/inbox.ts`) e os indicadores do
-   portal (`src/server/services/portal.ts`) filtram explicitamente por
+2. A caixa de entrada (`src/server/services/inbox.ts`) e os indicadores
+   (`src/server/services/indicators.ts`) filtram explicitamente por
    `client_id` quando o login é de cliente, nunca só por `account_id` — o
    mesmo princípio já documentado para as queries do aluno na plataforma de
    cursos: confiar só em RLS ou só em esconder a UI não basta, o filtro tem
@@ -193,6 +193,50 @@ usada pela equipe do aluno e pelo cliente final:
   sozinho. Foi uma escolha consciente contra "desligar para sempre ao
   responder": com pausa, uma conversa esquecida volta a ser atendida pelo
   bot; quem quer o bot fora de vez usa o interruptor.
+
+### Redesenho: compacto, situação clara e indicadores com gráficos
+
+Segundo retorno do Lorennzo (2026-09-24), pensando numa conta com centenas
+de conversas: mensagens "quadradas", letras e caixas grandes, tudo "bruto";
+faltava filtrar por cliente e por número; a situação da conversa não estava
+clara; e os indicadores eram só números soltos. A prioridade declarada: quem
+está atendendo (sobretudo o cliente final) tem que ter conforto para passar
+o dia respondendo ali. O que mudou, e por quê:
+
+- **Uma situação só por conversa**, derivada num lugar
+  (`statusOf` em `inbox.ts`): *aguardando você* (o bot chamou a equipe) >
+  *bot atendendo* > *com a equipe* (bot pausado ou desligado) > *finalizada*.
+  Antes havia três sinais separados (status técnico, "precisa de você",
+  estado do bot) e cabia à pessoa juntar. A mesma situação aparece na
+  bolinha do avatar, no cabeçalho da conversa e na ficha.
+- **Lista feita para escala**: altura fixa de duas linhas por conversa
+  (nome · origem · hora / última mensagem · categoria), conversa aguardando
+  com barra e hora em âmbar, contagem só nas abas que pedem ação (abertas e
+  aguardando), filtro por cliente (equipe) e por número, 60 conversas por
+  vez com "carregar mais". Tudo na URL, então o filtro sobrevive à
+  atualização automática e dá para mandar o link.
+- **Tipografia e balões menores**, tons discretos por remetente (contato,
+  bot, equipe) em vez do verde do WhatsApp, rótulo de quem falou só no começo
+  de cada sequência. No celular, categoria e telefone descem para uma faixa
+  abaixo do cabeçalho, para o nome nunca sumir.
+- **Indicadores com gráficos**, a mesma tela para a equipe (com filtro por
+  cliente) e para o cliente final. Escolha das métricas: o que o dono do
+  negócio quer saber — quanto chegou (e se subiu ou caiu), o que está
+  pendente agora, quanto o bot resolveu sozinho (é o argumento de venda do
+  produto), sobre o que as pessoas falam e em que horário (para escalar a
+  equipe). Regras de visual: uma cor só por gráfico (cor por categoria vira
+  arco-íris e não carrega significado), cinza para "sem categoria", e todo
+  gráfico com a versão em tabela.
+- **De onde vêm os números.** A série por dia sai das estatísticas
+  agregadas (`daily_stats`), que a limpeza de 30 dias não apaga — por isso o
+  período de 90 dias funciona. O resto sai das conversas guardadas, e a tela
+  avisa quando o período pedido passa do tempo de guarda. O "dia" das
+  estatísticas passou a ser o de Brasília: antes era o de UTC, e uma
+  conversa das 22h caía no dia seguinte (dados antigos continuam como
+  estavam).
+
+Validado com mais de 800 conversas falsas numa cópia do banco de
+desenvolvimento, pela equipe e pelo cliente, no computador e no celular.
 
 ### O Evolution (WhatsApp) nunca fica público
 
@@ -364,6 +408,8 @@ reverificar depois de mexer no código relacionado).
 | Portal do cliente final (`/portal`): login escopado, conceder acesso, métricas | sim (escopo por cliente) | sim (dois perfis, dados isolados por cliente confirmados ao vivo) |
 | Caixa de entrada em 3 colunas (equipe e cliente final): busca, abas, responder pelo painel, notas, atualização automática | sim | sim (equipe e cliente, 2026-09-24) |
 | Interruptor do bot por conversa + estado explicado (pausado/desligado/motivo) | sim | sim |
+| Caixa de entrada com centenas de conversas: filtro por cliente/número, situação única, "carregar mais" | sim | sim (800+ conversas falsas numa cópia do banco, computador e celular, 2026-09-24) |
+| Indicadores com gráficos (equipe com filtro por cliente, e cliente final) | sim (números batem com a caixa de entrada e respeitam o escopo) | sim (mesma validação) |
 | Banco das conversas no próprio servidor (sem Supabase) | parcial (fallback testado em dev) | não — validar no VPS depois do `git pull` (serviço `dados`) |
 | Horários no fuso de Brasília (servidor em UTC) | não | sim |
 | Bot não repete o nome da pessoa a cada mensagem | sim (instrução do prompt) | não — só dá para ver com a chave real da OpenAI |

@@ -46,6 +46,8 @@ Regras:
 2. `npm run build` passa (o build pega erros de RSC que o tsc não pega).
 3. Abrir no navegador e testar de verdade (dev: `npm run dev`, login `demo@local.test` / `demo123`).
 
+Gráficos: os componentes de `src/components/indicators/charts.tsx` (`ChartCard`, `ColumnChart`, `RankBars`). Uma cor por gráfico (`chart-1`; `chart-muted` para "sem categoria"/"outras"), nunca uma cor por categoria; texto nas cores de texto, nunca na da série; grade em linha fina contínua; todo gráfico com a versão em tabela (`table` do `ChartCard`).
+
 Datas na tela: sempre pelos formatadores de `src/lib/utils.ts` (`formatDateTime`, `formatTime`, `formatListTime`, `formatDayLabel`), que fixam o fuso `America/Sao_Paulo` — o servidor roda em UTC. Telas de ponta a ponta (como a caixa de entrada) marcam o elemento raiz com `data-fullbleed` para ocupar a área inteira do layout.
 
 ## Serviços disponíveis (src/server/services)
@@ -57,7 +59,7 @@ Datas na tela: sempre pelos formatadores de `src/lib/utils.ts` (`formatDateTime`
 - `bots.ts`: listBots, getBot, createBot, updateBot, publishBot, duplicateBot, deleteBot. Modelos por nicho: `botTemplates` em `src/shared/bot-config.ts`.
 - `knowledge.ts`: listKnowledge, addTextItem, addFaqItem, addFileItem, addUrlItem, updateItem, deleteItem, reindexItem, reindexBot.
 - `inbox.ts` (caixa de entrada da equipe e do portal, sempre com um `InboxScope`): parseInboxParams, listInbox, getInboxConversation, setInboxResolved, setInboxCategory, setInboxBot, sendInboxMessage, saveInboxNotes, renameInboxContact, setInboxBlocked. A tela é `src/components/inbox/` (usada por `/conversas` e `/portal/conversas`, cada uma passando as próprias server actions).
-- `portal.ts`: getPortalOverview (indicadores do cliente final).
+- `indicators.ts` (indicadores da equipe e do portal): getIndicators(scope, dias), indicatorClients, parsePeriod. A tela é `src/components/indicators/` (usada por `/indicadores` e `/portal`).
 - `stats.ts`: getOverview(accountId, days).
 - `events.ts`: logEvent, listEvents, listNumberEvents.
 - Playground do Studio: `POST /api/playground` com `{ botId, config, variables, history, userText }`.

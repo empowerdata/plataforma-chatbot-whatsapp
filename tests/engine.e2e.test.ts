@@ -235,7 +235,7 @@ describe("engine ponta a ponta (Evolution simulada + IA simulada)", () => {
   it("religar o bot também tira a pausa do pedido de atendente e o 'precisa de você'", async () => {
     const { setInboxBot, listInbox } = await import("@/server/services/inbox");
     const { conversation } = await conversationOf("5511977770009"); // a Célia, do teste de handoff
-    const atencao = await listInbox(staffScope(), { view: "atencao", category: null, numberId: null, search: "" });
+    const atencao = await listInbox(staffScope(), { view: "atencao", category: null, numberId: null, clientId: null, limit: 60, search: "" });
     expect(atencao.items.map((i) => i.id)).toContain(conversation.id);
 
     await setInboxBot(staffScope(), conversation.id, true);
@@ -247,13 +247,30 @@ describe("engine ponta a ponta (Evolution simulada + IA simulada)", () => {
 
   it("busca por nome, telefone ou mensagem", async () => {
     const { listInbox } = await import("@/server/services/inbox");
-    const all = { view: "todas" as const, category: null, numberId: null };
+    const all = { view: "todas" as const, category: null, numberId: null, clientId: null, limit: 60 };
     const byName = await listInbox(staffScope(), { ...all, search: "brun" });
     expect(byName.items.map((i) => i.title)).toEqual(["Bruno"]);
     const byPhone = await listInbox(staffScope(), { ...all, search: "77770030" });
     expect(byPhone.items.map((i) => i.title)).toEqual(["Carla"]);
     const byText = await listInbox(staffScope(), { ...all, search: "Maria da equipe" });
     expect(byText.items.map((i) => i.title)).toEqual(["Bruno"]);
+  });
+
+  it("situação de cada conversa é uma só e clara: bot atendendo, com a equipe, aguardando você, finalizada", async () => {
+    const { listInbox, setInboxResolved } = await import("@/server/services/inbox");
+    const all = { view: "todas" as const, category: null, numberId: null, clientId: null, limit: 60, search: "" };
+    const byTitle = async () => Object.fromEntries((await listInbox(staffScope(), all)).items.map((i) => [i.title, i.status]));
+
+    let s = await byTitle();
+    expect(s["Bruno"]).toBe("equipe"); // a equipe respondeu pelo painel → bot pausado
+    expect(s["Carla"]).toBe("bot");
+    expect(s["Célia"]).toBe("bot"); // religada no teste anterior
+
+    const { conversation } = await conversationOf("5511977770030");
+    await setInboxResolved(staffScope(), conversation.id, true);
+    s = await byTitle();
+    expect(s["Carla"]).toBe("finalizada");
+    await setInboxResolved(staffScope(), conversation.id, false);
   });
 
   it("escopo do cliente final: só enxerga e mexe nas conversas dos números dele", async () => {
@@ -264,12 +281,18 @@ describe("engine ponta a ponta (Evolution simulada + IA simulada)", () => {
     const [dono] = await db.insert(schema.clients).values({ accountId, name: "Pizzaria do número" }).returning();
     const [outro] = await db.insert(schema.clients).values({ accountId, name: "Outro negócio" }).returning();
     const { conversation } = await conversationOf("5511977770020");
-    const filters = { view: "todas" as const, category: null, numberId: null, search: "" };
+    const filters = { view: "todas" as const, category: null, numberId: null, clientId: null, limit: 60, search: "" };
 
     await db.update(schema.numbers).set({ clientId: dono.id }).where(eq(schema.numbers.id, numberId));
     try {
       const mine = await listInbox({ accountId, clientId: dono.id, staff: false }, filters);
       expect(mine.items.map((i) => i.id)).toContain(conversation.id);
+
+      // Equipe filtrando por cliente: o dono aparece na lista de clientes e o filtro funciona.
+      const staffAll = await listInbox(staffScope(), filters);
+      expect(staffAll.clients).toEqual([{ id: dono.id, name: "Pizzaria do número" }]);
+      const staffByOther = await listInbox(staffScope(), { ...filters, clientId: outro.id });
+      expect(staffByOther.items).toHaveLength(0);
 
       const other = { accountId, clientId: outro.id, staff: false };
       expect((await listInbox(other, filters)).items).toHaveLength(0);
@@ -278,5 +301,32 @@ describe("engine ponta a ponta (Evolution simulada + IA simulada)", () => {
     } finally {
       await db.update(schema.numbers).set({ clientId: null }).where(eq(schema.numbers.id, numberId));
     }
+  });
+
+  it("indicadores batem com a caixa de entrada e respeitam o escopo", async () => {
+    const { getIndicators } = await import("@/server/services/indicators");
+    const { listInbox } = await import("@/server/services/inbox");
+    const all = { view: "todas" as const, category: null, numberId: null, clientId: null, limit: 60, search: "" };
+    const { counts } = await listInbox(staffScope(), all);
+    const ind = await getIndicators(staffScope(), 7);
+
+    expect(ind.hasNumbers).toBe(true);
+    expect(ind.daily).toHaveLength(7);
+    // Tudo neste teste aconteceu hoje: o último dia da série concentra as conversas.
+    expect(ind.kpis.started).toBe(counts.todas);
+    expect(ind.daily.at(-1)!.conversations).toBe(counts.todas);
+    expect(ind.kpis.openNow).toBe(counts.abertas);
+    expect(ind.kpis.waitingNow).toBe(counts.atencao);
+    expect(ind.categories.reduce((s, c) => s + c.n, 0)).toBe(counts.todas);
+    expect(ind.kpis.botOnly).toBeLessThanOrEqual(ind.kpis.botOnlyBase);
+
+    let inbound = 0;
+    for (const c of await store.listConversations({ numberId, limit: 100 })) inbound += (await store.listMessages(c.id, 500)).filter((m) => m.direction === "in").length;
+    expect(ind.hours).toHaveLength(24);
+    expect(ind.hours.reduce((s, n) => s + n, 0)).toBe(inbound);
+
+    const stranger = await getIndicators({ accountId, clientId: "00000000-0000-4000-8000-000000000000", staff: false }, 7);
+    expect(stranger.hasNumbers).toBe(false);
+    expect(stranger.kpis.started).toBe(0);
   });
 });

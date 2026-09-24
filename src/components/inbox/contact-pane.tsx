@@ -1,15 +1,24 @@
 "use client";
 
 import * as React from "react";
-import { Ban, Pencil, ShieldCheck, X } from "lucide-react";
-import { Badge, Switch } from "@/components/ui/primitives";
+import { Pencil, X } from "lucide-react";
+import { Switch } from "@/components/ui/primitives";
 import { useDialogs } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { Avatar, botDot, botExplanation } from "./parts";
+import { Avatar, StatusLabel, botExplanation } from "./parts";
 import type { InboxActions, InboxConversation } from "./types";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
+
+function Section({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
+  return (
+    <section className={cn("border-b border-border px-4 py-3.5", className)}>
+      <h4 className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-subtle">{title}</h4>
+      {children}
+    </section>
+  );
+}
 
 export function ContactPane({
   conversation: c,
@@ -27,7 +36,7 @@ export function ContactPane({
   className?: string;
 }) {
   const toast = useToast();
-  const { confirmDialog, promptDialog } = useDialogs();
+  const { promptDialog } = useDialogs();
   const [busy, setBusy] = React.useState<string | null>(null);
 
   async function run(key: string, fn: () => Promise<{ error: string | null }>, ok: string) {
@@ -46,9 +55,10 @@ export function ContactPane({
 
   const botOn = c.bot.kind === "active";
   const botLocked = c.bot.kind === "blocked" || c.bot.kind === "number_off" || c.bot.kind === "no_bot";
+  const displayName = c.contact.name ?? c.contact.pushName ?? c.contact.phone;
 
   return (
-    <aside className={cn("flex w-[300px] shrink-0 flex-col overflow-y-auto border-l border-border bg-surface-1", className)}>
+    <aside className={cn("flex w-[288px] shrink-0 flex-col overflow-y-auto border-l border-border bg-surface-1", className)}>
       {onClose ? (
         <div className="flex justify-end px-2 pt-2 2xl:hidden">
           <button type="button" onClick={onClose} className="rounded-md p-1.5 text-muted hover:bg-surface-2 hover:text-foreground" aria-label="Fechar">
@@ -57,10 +67,10 @@ export function ContactPane({
         </div>
       ) : null}
 
-      <div className="flex flex-col items-center gap-1.5 border-b border-border px-5 pb-5 pt-4 text-center 2xl:pt-6">
-        <Avatar initials={c.initials} bot={botDot(c.bot)} size="lg" />
-        <div className="mt-1 flex max-w-full items-center gap-1">
-          <span className="truncate text-sm font-semibold text-foreground">{c.contact.name ?? c.contact.pushName ?? c.contact.phone}</span>
+      <div className="flex flex-col items-center gap-1 border-b border-border px-4 pb-4 pt-3 text-center 2xl:pt-5">
+        <Avatar initials={c.initials} status={c.status} size="lg" />
+        <div className="mt-1.5 flex max-w-full items-center gap-1">
+          <span className="truncate text-sm font-semibold text-foreground">{displayName}</span>
           <button
             type="button"
             title="Editar nome"
@@ -75,49 +85,27 @@ export function ContactPane({
         </div>
         <span className="text-xs text-muted">{c.contact.phone}</span>
         {c.contact.pushName && c.contact.name && c.contact.pushName !== c.contact.name ? <span className="text-[11px] text-subtle">no WhatsApp: {c.contact.pushName}</span> : null}
-        <Badge tone="neutral" className="mt-1">
-          {c.numberLabel}
-        </Badge>
+        <StatusLabel status={c.status} className="mt-1.5" />
       </div>
 
-      <section className="space-y-2 border-b border-border px-5 py-4">
-        <h4 className="text-[11px] font-semibold uppercase tracking-wide text-subtle">Bot nesta conversa</h4>
+      <Section title="Bot nesta conversa">
         <Switch checked={botOn} disabled={botLocked || busy === "bot"} onChange={(v) => run("bot", () => actions.setBot(c.id, v), v ? "Bot ligado nesta conversa." : "Bot desligado nesta conversa.")} label={botOn ? "Ligado" : "Desligado"} />
-        <p className={cn("text-xs leading-relaxed", c.bot.kind === "paused" ? "text-warning" : "text-muted")}>{botExplanation(c.bot, audience)}</p>
-      </section>
+        <p className={cn("mt-2 text-xs leading-relaxed", c.bot.kind === "paused" ? "text-warning" : "text-muted")}>{botExplanation(c.bot, audience)}</p>
+      </Section>
 
       <Notes key={c.id} conversation={c} actions={actions} />
 
-      <section className="border-b border-border px-5 py-4">
-        <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-subtle">Detalhes</h4>
+      <Section title="Detalhes" className="border-b-0">
         <dl className="space-y-1.5 text-xs">
+          {audience === "staff" && c.clientName ? <Row label="Cliente" value={c.clientName} /> : null}
+          <Row label="Número" value={c.numberLabel} />
           <Row label="Primeiro contato" value={c.contact.firstSeenAt} />
           <Row label="Última atividade" value={c.contact.lastSeenAt} />
           <Row label="Conversa aberta em" value={c.createdAt} />
           <Row label="Mensagens" value={String(c.messageCount)} />
           {c.botName ? <Row label="Bot" value={c.botName} /> : null}
         </dl>
-      </section>
-
-      <section className="px-5 py-4">
-        {c.contact.isBlocked ? (
-          <button type="button" disabled={busy === "block"} onClick={() => run("block", () => actions.setBlocked(c.id, false), "Contato desbloqueado.")} className="inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-foreground disabled:opacity-50">
-            <ShieldCheck className="h-3.5 w-3.5" /> Desbloquear contato
-          </button>
-        ) : (
-          <button
-            type="button"
-            disabled={busy === "block"}
-            onClick={async () => {
-              const ok = await confirmDialog("O bot deixa de responder este contato e nenhuma automação roda para ele. Dá para desbloquear quando quiser.", { title: "Bloquear este contato?", destructive: true, confirmLabel: "Bloquear" });
-              if (ok) void run("block", () => actions.setBlocked(c.id, true), "Contato bloqueado.");
-            }}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-danger/80 hover:text-danger disabled:opacity-50"
-          >
-            <Ban className="h-3.5 w-3.5" /> Bloquear contato
-          </button>
-        )}
-      </section>
+      </Section>
     </aside>
   );
 }
@@ -125,8 +113,8 @@ export function ContactPane({
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-3">
-      <dt className="text-muted">{label}</dt>
-      <dd className="truncate text-right text-foreground/90">{value}</dd>
+      <dt className="shrink-0 text-muted">{label}</dt>
+      <dd className="truncate text-right text-foreground/85">{value}</dd>
     </div>
   );
 }
@@ -169,17 +157,16 @@ function Notes({ conversation: c, actions }: { conversation: InboxConversation; 
   }, [notes, save]);
 
   return (
-    <section className="border-b border-border px-5 py-4">
-      <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-subtle">Notas internas</h4>
+    <Section title="Notas internas">
       <textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         onBlur={() => void save(notes)}
         placeholder="Anote o que importa sobre este contato…"
         rows={4}
-        className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-subtle focus:border-accent/60 focus:outline-none focus:ring-2 focus:ring-accent/20"
+        className="w-full resize-y rounded-md border border-border bg-background px-2.5 py-2 text-[13px] leading-relaxed text-foreground placeholder:text-subtle focus:border-accent/50 focus:outline-none"
       />
-      <p className="mt-1 text-[11px] text-subtle">{state === "saving" ? "Salvando…" : state === "saved" ? "Salvo" : state === "error" ? "Não foi possível salvar" : "Salvo automaticamente · só a equipe vê"}</p>
-    </section>
+      <p className="mt-1 text-[11px] text-subtle">{state === "saving" ? "Salvando…" : state === "saved" ? "Salvo" : state === "error" ? "Não foi possível salvar" : "Só a equipe vê · salva sozinho"}</p>
+    </Section>
   );
 }

@@ -33,7 +33,7 @@ export default async function PortalLayout({ children }: { children: React.React
         </div>
       </header>
       <main className="min-h-0 flex-1 overflow-y-auto has-[[data-fullbleed]]:overflow-hidden">
-        <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 has-[[data-fullbleed]]:h-full has-[[data-fullbleed]]:max-w-none has-[[data-fullbleed]]:p-0">{children}</div>
+        <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 has-[[data-fullbleed]]:h-full has-[[data-fullbleed]]:max-w-none has-[[data-fullbleed]]:p-0">{children}</div>
       </main>
     </div>
   );

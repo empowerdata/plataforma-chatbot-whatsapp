@@ -14,40 +14,14 @@ export default async function ConversasPage(props: PageProps<"/conversas">) {
   const { filters, selectedId } = parseInboxParams(await props.searchParams);
   const scope: InboxScope = { accountId: account.id, clientId: null, staff: true };
 
+  let loaded: [Awaited<ReturnType<typeof listInbox>>, Awaited<ReturnType<typeof getInboxConversation>>] | null = null;
   try {
-    const [inbox, selected] = await Promise.all([listInbox(scope, filters), selectedId ? getInboxConversation(scope, selectedId) : Promise.resolve(null)]);
-    return (
-      <Inbox
-        basePath="/conversas"
-        audience="staff"
-        list={inbox.items}
-        counts={inbox.counts}
-        categories={inbox.categories}
-        numbers={inbox.numbers}
-        filters={filters}
-        selectedId={selectedId}
-        selected={selected}
-        actions={{
-          setResolved: setResolvedAction,
-          setCategory: setCategoryAction,
-          setBot: setBotAction,
-          send: sendMessageAction,
-          saveNotes: saveNotesAction,
-          rename: renameContactAction,
-          setBlocked: setBlockedAction,
-        }}
-        emptyHint={
-          <>
-            Nenhum número ainda.{" "}
-            <Link href="/numeros" className="text-accent hover:underline">
-              Conectar um WhatsApp
-            </Link>
-          </>
-        }
-      />
-    );
+    loaded = await Promise.all([listInbox(scope, filters), selectedId ? getInboxConversation(scope, selectedId) : Promise.resolve(null)]);
   } catch (err) {
     if (!(err instanceof TenantNotConfigured)) throw err;
+  }
+
+  if (!loaded) {
     return (
       <EmptyState
         icon={<Database className="h-6 w-6" />}
@@ -61,4 +35,39 @@ export default async function ConversasPage(props: PageProps<"/conversas">) {
       />
     );
   }
+
+  const [inbox, selected] = loaded;
+  return (
+    <Inbox
+      basePath="/conversas"
+      audience="staff"
+      list={inbox.items}
+      counts={inbox.counts}
+      categories={inbox.categories}
+      numbers={inbox.numbers}
+      clients={inbox.clients}
+      hasMore={inbox.hasMore}
+      noNumbers={inbox.noNumbers}
+      filters={filters}
+      selectedId={selectedId}
+      selected={selected}
+      actions={{
+        setResolved: setResolvedAction,
+        setCategory: setCategoryAction,
+        setBot: setBotAction,
+        send: sendMessageAction,
+        saveNotes: saveNotesAction,
+        rename: renameContactAction,
+        setBlocked: setBlockedAction,
+      }}
+      emptyHint={
+        <>
+          Nenhum número ainda.{" "}
+          <Link href="/numeros" className="text-accent hover:underline">
+            Conectar um WhatsApp
+          </Link>
+        </>
+      }
+    />
+  );
 }

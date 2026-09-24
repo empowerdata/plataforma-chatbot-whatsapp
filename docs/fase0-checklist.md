@@ -35,8 +35,9 @@ corrigiu três bugs que bloqueavam toda instalação (repositório privado,
 - [ ] Dono responde pelo celular → a conversa mostra "Bot pausado… até HH:MM" e o bot fica em silêncio; "Reativar agora" religa na hora.
 - [ ] Resposta pela caixa de entrada chega no celular do cliente e aparece com o nome de quem enviou (o eco não vira "pelo celular").
 - [ ] Interruptor "Bot" desligado numa conversa → o bot não responde mais aquele contato até religar.
-- [ ] "Quero falar com atendente" → aviso chega no telefone configurado e a conversa entra em "Precisa de você".
+- [ ] "Quero falar com atendente" → aviso chega no telefone configurado e a conversa entra em "Aguardando" (barra âmbar na lista).
 - [ ] Horários na tela batem com o horário de Brasília (o servidor roda em UTC).
+- [ ] Indicadores (`/indicadores` e `/portal`) mostram as conversas do dia no dia certo, e o cliente final só vê os números dele.
 - [ ] Numa conversa de 5+ mensagens, o bot chama a pessoa pelo nome no máximo uma vez e não abre toda resposta com "Entendi"/"Obrigado".
 - [ ] Desconectar pelo painel → status "Desconectado"; reconectar gera QR novo.
 - [ ] Excluir número remove a instância na Evolution (`fetchInstances` não lista mais).

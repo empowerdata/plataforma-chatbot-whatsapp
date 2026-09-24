@@ -9,7 +9,7 @@ import { getScheduler } from "../engine/scheduler";
 import type { BotConfig } from "@/shared/bot-config";
 import type { NumberSettings } from "@/shared/number-settings";
 import { dayKey, formatDateTime, formatDayLabel, formatListTime, formatNumber, formatPhone, formatRelative, formatTime, initials } from "@/lib/utils";
-import type { BotState, InboxConversation, InboxCounts, InboxFilters, InboxListItem, InboxThreadItem, InboxView } from "@/components/inbox/types";
+import { INBOX_MAX, INBOX_PAGE, type BotState, type ConversationStatus, type InboxConversation, type InboxCounts, type InboxFilters, type InboxListItem, type InboxThreadItem, type InboxView } from "@/components/inbox/types";
 
 /**
  * Caixa de entrada das conversas — um serviço só para o painel da equipe e
@@ -30,6 +30,8 @@ type ScopeNumber = {
   instanceName: string;
   nodeId: string;
   settings: NumberSettings;
+  clientId: string | null;
+  clientName: string | null;
   botName: string | null;
   botActive: boolean | null;
   botConfig: BotConfig | null;
@@ -48,13 +50,22 @@ async function scopeNumbers(scope: InboxScope): Promise<ScopeNumber[]> {
       instanceName: schema.numbers.instanceName,
       nodeId: schema.numbers.nodeId,
       settings: schema.numbers.settings,
+      clientId: schema.numbers.clientId,
+      clientName: schema.clients.name,
       botName: schema.bots.name,
       botActive: schema.bots.isActive,
       botConfig: schema.bots.config,
     })
     .from(schema.numbers)
     .leftJoin(schema.bots, eq(schema.bots.id, schema.numbers.botId))
+    .leftJoin(schema.clients, eq(schema.clients.id, schema.numbers.clientId))
     .where(and(...conds));
+}
+
+function statusOf(resolved: boolean, needsHuman: boolean, bot: BotState): ConversationStatus {
+  if (resolved) return "finalizada";
+  if (needsHuman) return "aguardando";
+  return bot.kind === "active" ? "bot" : "equipe";
 }
 
 /** Mesma regra do motor (effective() em inbound.ts): ajuste do número → config do bot → 6h. */
@@ -107,12 +118,16 @@ export function parseInboxParams(sp: Record<string, string | string[] | undefine
   const view = one("v") as InboxView;
   const c = one("c");
   const n = one("n");
+  const cl = one("cl");
+  const lim = Math.round(Number(one("lim")) / INBOX_PAGE) * INBOX_PAGE;
   return {
     filters: {
       view: VIEWS.includes(view) ? view : "abertas",
       category: one("cat").slice(0, 40) || null,
       numberId: UUID_RE.test(n) ? n : null,
+      clientId: UUID_RE.test(cl) ? cl : null,
       search: one("q").slice(0, 80),
+      limit: lim >= INBOX_PAGE && lim <= INBOX_MAX ? lim : INBOX_PAGE,
     },
     selectedId: UUID_RE.test(c) ? c : null,
   };
@@ -122,20 +137,33 @@ export type InboxList = {
   items: InboxListItem[];
   counts: InboxCounts;
   categories: string[];
+  /** Números no filtro atual de cliente (para o seletor de número). */
   numbers: { id: string; label: string }[];
+  /** Clientes com números no escopo (a equipe filtra por eles; o portal só tem um). */
+  clients: { id: string; name: string }[];
+  /** Tem mais conversas do que as carregadas ("carregar mais"). */
+  hasMore: boolean;
+  /** O escopo não tem número nenhum (ainda nada para mostrar). */
+  noNumbers: boolean;
 };
 
-export async function listInbox(scope: InboxScope, filters: InboxFilters, limit = 150): Promise<InboxList> {
+export async function listInbox(scope: InboxScope, filters: InboxFilters): Promise<InboxList> {
   const nums = await scopeNumbers(scope);
-  const numbers = nums.map((n) => ({ id: n.id, label: n.label }));
-  if (!nums.length) return { items: [], counts: EMPTY_COUNTS, categories: [], numbers };
+  const clientMap = new Map<string, string>();
+  for (const n of nums) if (n.clientId && n.clientName) clientMap.set(n.clientId, n.clientName);
+  const clients = [...clientMap].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const inClient = filters.clientId ? nums.filter((n) => n.clientId === filters.clientId) : nums;
+  const numbers = inClient.map((n) => ({ id: n.id, label: n.label }));
+  const base = { categories: [] as string[], numbers, clients, hasMore: false, noNumbers: nums.length === 0 };
+  if (!inClient.length) return { ...base, items: [], counts: EMPTY_COUNTS };
+
   const byId = new Map(nums.map((n) => [n.id, n]));
-  const numberIds = filters.numberId && byId.has(filters.numberId) ? [filters.numberId] : nums.map((n) => n.id);
+  const numberIds = filters.numberId && inClient.some((n) => n.id === filters.numberId) ? [filters.numberId] : inClient.map((n) => n.id);
   const store = await getTenantStore(scope.accountId);
 
   const [rows, categories, abertas, atencao, finalizadas, todas] = await Promise.all([
-    store.listConversations({ numberIds, ...viewFilter(filters.view), category: filters.category ?? undefined, search: filters.search || undefined, limit }),
-    store.listCategoriesInUse(nums.map((n) => n.id)),
+    store.listConversations({ numberIds, ...viewFilter(filters.view), category: filters.category ?? undefined, search: filters.search || undefined, limit: filters.limit }),
+    store.listCategoriesInUse(inClient.map((n) => n.id)),
     store.countConversations({ numberIds, resolved: false }),
     store.countConversations({ numberIds, resolved: false, needsHuman: true }),
     store.countConversations({ numberIds, resolved: true }),
@@ -143,16 +171,17 @@ export async function listInbox(scope: InboxScope, filters: InboxFilters, limit 
   ]);
 
   return {
+    ...base,
     items: rows.map((r) => toListItem(r, byId.get(r.number_id))),
     counts: { abertas, atencao, finalizadas, todas },
     categories,
-    numbers,
+    hasMore: rows.length >= filters.limit,
   };
 }
 
 function toListItem(r: ConversationListRow, num: ScopeNumber | undefined): InboxListItem {
   const name = r.contact_name ?? r.contact_push_name ?? null;
-  const state = num ? computeBotState(num, { is_blocked: r.contact_is_blocked, bot_disabled: r.contact_bot_disabled, bot_paused_until: r.contact_bot_paused_until }, r) : { kind: "no_bot" as const };
+  const state: BotState = num ? computeBotState(num, { is_blocked: r.contact_is_blocked, bot_disabled: r.contact_bot_disabled, bot_paused_until: r.contact_bot_paused_until }, r) : { kind: "no_bot" };
   return {
     id: r.id,
     title: name ?? formatPhone(r.contact_phone),
@@ -161,10 +190,9 @@ function toListItem(r: ConversationListRow, num: ScopeNumber | undefined): Inbox
     preview: r.last_message_preview,
     lastAt: formatListTime(r.last_message_at),
     numberLabel: num?.label ?? "—",
+    clientName: num?.clientName ?? null,
     category: r.category,
-    resolved: r.resolved_at != null,
-    needsHuman: r.needs_human,
-    bot: state.kind === "active" || state.kind === "off" || state.kind === "paused" ? state.kind : "unavailable",
+    status: statusOf(r.resolved_at != null, r.needs_human, state),
   };
 }
 
@@ -176,6 +204,7 @@ export async function getInboxConversation(scope: InboxScope, conversationId: st
   const { store, conversation: c, contact, num } = loaded;
   const messages = await store.listMessages(c.id, 300);
   const name = contact.name ?? contact.push_name ?? null;
+  const bot = computeBotState(num, contact, c);
   return {
     id: c.id,
     title: name ?? formatPhone(contact.phone),
@@ -183,13 +212,15 @@ export async function getInboxConversation(scope: InboxScope, conversationId: st
     phone: formatPhone(contact.phone),
     numberId: num.id,
     numberLabel: num.label,
+    clientName: num.clientName,
     numberConnected: num.status === "open",
     pauseHoursOnReply: pauseHoursFor(num),
     category: c.category,
+    status: statusOf(c.resolved_at != null, c.needs_human, bot),
     resolved: c.resolved_at != null,
     needsHuman: c.needs_human,
     handoffReason: c.handoff_reason,
-    bot: computeBotState(num, contact, c),
+    bot,
     botName: num.botName,
     createdAt: formatDateTime(c.created_at),
     messageCount: Number(c.message_count ?? 0),

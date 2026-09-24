@@ -11,17 +11,26 @@ Para o histórico de decisões e o porquê de cada uma, ver
   Supabase opcional), configurações, simulador de WhatsApp para dev.
 - **Caixa de entrada** (`/conversas` para a equipe, `/portal/conversas` para
   o cliente final): três colunas (lista · conversa · contato), busca, abas
-  (em aberto, precisa de você, finalizadas, todas), responder pelo painel,
-  interruptor do bot por conversa com o motivo de estar pausado/desligado,
-  categoria, finalizar/reabrir, notas internas, atualização automática a
-  cada 5 s.
+  (abertas, aguardando, finalizadas, todas), filtros por cliente, número e
+  categoria, lista de altura fixa que aguenta centenas de conversas (60 por
+  vez, "carregar mais" até 600), uma situação só e clara por conversa
+  (aguardando você · bot atendendo · com a equipe · finalizada), responder
+  pelo painel, interruptor do bot por conversa com o motivo de estar
+  pausado/desligado, categoria, finalizar/reabrir, notas internas,
+  atualização automática a cada 5 s. Visual compacto (redesenho de
+  2026-09-24).
+- **Indicadores** (`/indicadores` para a equipe, com filtro por cliente;
+  `/portal` para o cliente final): conversas iniciadas (com variação sobre o
+  período anterior), em aberto e aguardando agora, finalizadas, % resolvida
+  só pelo bot, gráficos de conversas por dia, assuntos (categorias),
+  horário das mensagens e, para a equipe, conversas por cliente. Todo
+  gráfico tem a mesma informação em tabela.
 - **Portal do cliente final** (`/portal`): login próprio (`role: "client"`,
   escopado a um `client_id`), nunca alcança dados de outro cliente da mesma
   conta nem o painel da equipe (reforçado em `requireAccount`/
   `getAccountOrThrow`, não só escondido na UI). O aluno concede o acesso pela
   tela de Clientes (link de "definir senha"). Cai direto na caixa de
-  entrada; indicadores (em aberto, finalizadas no período, por categoria) em
-  outra aba — sem Kanban ainda.
+  entrada; os indicadores ficam na outra aba — sem Kanban ainda.
 - **Banco das conversas no próprio servidor**: serviço `dados` (pgvector) no
   VPS, mesmo banco do painel no Render. O aluno não configura banco nenhum.
 - **Engine**: debounce por contato, RAG com pgvector (ou busca textual sem

@@ -2,6 +2,7 @@ import "server-only";
 import { desc, eq } from "drizzle-orm";
 import { getDb, schema } from "../db";
 import { getTenantStore, TenantNotConfigured } from "../tenant";
+import { dayKey } from "@/lib/utils";
 
 export type Overview = {
   available: boolean;
@@ -50,10 +51,10 @@ export async function getOverview(accountId: string, days = 30): Promise<Overvie
   const from = new Date(to.getTime() - (days - 1) * 86400_000);
   const ids = numbers.map((n) => n.id);
   const rows = await store.dailyStats(ids, from, to);
-  const todayStr = to.toISOString().slice(0, 10);
+  const todayStr = dayKey(to);
   const byDay = new Map<string, { conversations: number; messages: number; handoffs: number }>();
   for (let i = 0; i < days; i++) {
-    const d = new Date(from.getTime() + i * 86400_000).toISOString().slice(0, 10);
+    const d = dayKey(new Date(from.getTime() + i * 86400_000));
     byDay.set(d, { conversations: 0, messages: 0, handoffs: 0 });
   }
   const perNumber = new Map<string, { conversations: number; messages: number }>();

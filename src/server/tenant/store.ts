@@ -1,5 +1,6 @@
 import "server-only";
 import type { SqlExecutor } from "./executor";
+import { dayKey } from "@/lib/utils";
 
 /**
  * Operações sobre o banco do aluno (schema "chatbot").
@@ -440,8 +441,8 @@ export class TenantStore {
   async bumpDailyStat(numberId: string, day: Date, delta: Partial<Record<keyof Omit<DailyStat, "day">, number>>): Promise<void> {
     const cols = Object.keys(delta) as (keyof typeof delta)[];
     if (!cols.length) return;
-    const dayStr = day.toISOString().slice(0, 10);
-    const params: unknown[] = [numberId, dayStr];
+    // O "dia" é o do fuso de exibição: conversa das 22h de Brasília conta no mesmo dia, não no seguinte.
+    const params: unknown[] = [numberId, dayKey(day)];
     const insertCols = cols.map((c) => c).join(", ");
     const insertVals = cols
       .map((c) => {
@@ -459,14 +460,15 @@ export class TenantStore {
     );
   }
 
-  async dailyStats(numberIds: string[], fromDay: Date, toDay: Date): Promise<(DailyStat & { number_id: string })[]> {
+  /** Dias como Date (vira o dia no fuso de exibição) ou já em "AAAA-MM-DD". */
+  async dailyStats(numberIds: string[], fromDay: Date | string, toDay: Date | string): Promise<(DailyStat & { number_id: string })[]> {
     if (!numberIds.length) return [];
     const rows = await this.db.query<(DailyStat & { number_id: string; day: unknown })>(
       `select number_id, day::text as day, conversations, messages_in, messages_out, bot_messages, human_messages, new_contacts, handoffs, tokens_in::int as tokens_in, tokens_out::int as tokens_out
        from chatbot.daily_stats
        where number_id = any($1::uuid[]) and day between $2::date and $3::date
        order by day asc`,
-      [numberIds, fromDay.toISOString().slice(0, 10), toDay.toISOString().slice(0, 10)],
+      [numberIds, typeof fromDay === "string" ? fromDay : dayKey(fromDay), typeof toDay === "string" ? toDay : dayKey(toDay)],
     );
     return rows.map((r) => ({ ...r, day: String(r.day).slice(0, 10) }));
   }
@@ -478,6 +480,55 @@ export class TenantStore {
       [numberIds],
     );
     return Number(rows[0]?.n ?? 0);
+  }
+
+  /**
+   * Números da tela de indicadores numa consulta só. "Em aberto" e "aguardando"
+   * são o retrato de agora (sem corte de período); o resto conta a partir de `since`.
+   * "Só o bot" = conversa que começou no período sem nenhuma mensagem da equipe
+   * nem passagem para humano (`handoff_reason` fica nulo).
+   */
+  async indicatorSummary(numberIds: string[], since: Date): Promise<{ started: number; openNow: number; waitingNow: number; resolved: number; botOnly: number }> {
+    if (!numberIds.length) return { started: 0, openNow: 0, waitingNow: 0, resolved: 0, botOnly: 0 };
+    const rows = await this.db.query<Record<string, number | string>>(
+      `select
+         count(*) filter (where created_at >= $2) as started,
+         count(*) filter (where resolved_at is null) as open_now,
+         count(*) filter (where resolved_at is null and needs_human) as waiting_now,
+         count(*) filter (where resolved_at >= $2) as resolved,
+         count(*) filter (where created_at >= $2 and human_message_count = 0 and handoff_reason is null) as bot_only
+       from chatbot.conversations
+       where number_id = any($1::uuid[])`,
+      [numberIds, since],
+    );
+    const r = rows[0] ?? {};
+    return { started: Number(r.started ?? 0), openNow: Number(r.open_now ?? 0), waitingNow: Number(r.waiting_now ?? 0), resolved: Number(r.resolved ?? 0), botOnly: Number(r.bot_only ?? 0) };
+  }
+
+  /** Conversas com atividade no período, por categoria ("" = sem categoria). */
+  async categoryCountsSince(numberIds: string[], since: Date): Promise<{ category: string; n: number }[]> {
+    if (!numberIds.length) return [];
+    const rows = await this.db.query<{ category: string; n: number | string }>(
+      `select coalesce(category, '') as category, count(*) as n
+       from chatbot.conversations
+       where number_id = any($1::uuid[]) and last_message_at >= $2
+       group by 1 order by 2 desc`,
+      [numberIds, since],
+    );
+    return rows.map((r) => ({ category: r.category, n: Number(r.n) }));
+  }
+
+  /** Mensagens recebidas por hora do dia, em UTC (quem chama converte para o fuso de exibição). */
+  async inboundByHourUtc(numberIds: string[], since: Date): Promise<{ hour: number; n: number }[]> {
+    if (!numberIds.length) return [];
+    const rows = await this.db.query<{ hour: number | string; n: number | string }>(
+      `select extract(hour from created_at at time zone 'UTC')::int as hour, count(*) as n
+       from chatbot.messages
+       where number_id = any($1::uuid[]) and direction = 'in' and created_at >= $2
+       group by 1`,
+      [numberIds, since],
+    );
+    return rows.map((r) => ({ hour: Number(r.hour), n: Number(r.n) }));
   }
 
   async contactsCount(numberIds: string[]): Promise<number> {

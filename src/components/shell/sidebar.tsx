@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Smartphone, Bot, Building2, MessagesSquare, Plug, Settings, FlaskConical, Users, Server, ScrollText } from "lucide-react";
+import { LayoutDashboard, Smartphone, Bot, Building2, MessagesSquare, BarChart3, Plug, Settings, FlaskConical, Users, Server, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type NavItem = { href: string; label: string; icon: keyof typeof icons; badge?: number };
 
-const icons = { LayoutDashboard, Smartphone, Bot, Building2, MessagesSquare, Plug, Settings, FlaskConical, Users, Server, ScrollText };
+const icons = { LayoutDashboard, Smartphone, Bot, Building2, MessagesSquare, BarChart3, Plug, Settings, FlaskConical, Users, Server, ScrollText };
 
 export function Sidebar({ productName, sections }: { productName: string; sections: { title?: string; items: NavItem[] }[] }) {
   const pathname = usePathname();

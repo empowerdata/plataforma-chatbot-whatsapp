@@ -52,6 +52,7 @@ export default async function PainelLayout({ children }: { children: React.React
       { href: "/bots", label: "Bots", icon: "Bot" },
       { href: "/clientes", label: "Clientes", icon: "Building2" },
       { href: "/conversas", label: "Conversas", icon: "MessagesSquare" },
+      { href: "/indicadores", label: "Indicadores", icon: "BarChart3" },
       { href: "/integracoes", label: "Integrações", icon: "Plug" },
       { href: "/configuracoes", label: "Configurações", icon: "Settings" },
     ];

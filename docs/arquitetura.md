@@ -67,11 +67,23 @@ Runtime hoje é **em processo** (memória). Para várias réplicas, trocar `Memo
 
 ### Caixa de entrada (`src/server/services/inbox.ts` + `src/components/inbox/`)
 
-A mesma tela para a equipe do aluno (`/conversas`) e para o cliente final (`/portal/conversas`): lista com busca e abas (em aberto, precisa de você, finalizadas, todas), conversa com resposta pelo painel, e ficha do contato com notas internas. Atualiza sozinha a cada 5 s.
+A mesma tela para a equipe do aluno (`/conversas`) e para o cliente final (`/portal/conversas`): lista com busca, abas (abertas, aguardando, finalizadas, todas) e filtros por cliente/número/categoria, conversa com resposta pelo painel, e ficha do contato com notas internas. Atualiza sozinha a cada 5 s. A lista vem em páginas de 60 (`INBOX_PAGE`, "carregar mais" até `INBOX_MAX` = 600), com os filtros na URL (`?v=&cl=&n=&cat=&q=&lim=&c=`).
+
+- A **situação** de cada conversa é uma só, derivada em `statusOf`: finalizada > aguardando (o bot chamou a equipe, `needs_human`) > bot atendendo (bot ativo) > com a equipe (bot pausado/desligado). A lista, o cabeçalho da conversa e a ficha mostram sempre a mesma.
 
 - O **escopo** (`InboxScope`) decide o que cada um alcança: a equipe vê todos os números da conta; o cliente final só os números do `client_id` dele. Toda leitura e toda ação passam por `scopeNumbers`, então um cliente não toca conversa de outro nem adivinhando um id.
 - O **estado do bot** em cada conversa é calculado em um lugar só (`computeBotState`): ativo, pausado (com o motivo e a hora de voltar), desligado à mão, contato bloqueado, bot desligado no número, sem bot. A tela explica o porquê e oferece a ação certa ("Reativar agora", "Ligar o bot"…).
 - **Responder pelo painel** envia pela Evolution, marca o id em `sent-cache` (o eco não vira "pelo celular") e pausa o bot pelo mesmo tempo de uma resposta pelo celular. O interruptor liga na hora.
+
+### Indicadores (`src/server/services/indicators.ts` + `src/components/indicators/`)
+
+Mesma tela para a equipe (`/indicadores`, filtro por cliente) e para o cliente final (`/portal`), com o mesmo escopo por números da caixa de entrada. Cada número sai de um lugar:
+
+- **Série por dia, conversas iniciadas, pedidos de atendente**: `chatbot.daily_stats`, que a limpeza não apaga — vale para 7, 30 ou 90 dias. O "dia" é o de Brasília (`dayKey`), não o de UTC.
+- **Em aberto / aguardando**: retrato de agora, direto de `conversations`.
+- **Finalizadas, % só pelo bot, assuntos, horário**: das conversas e mensagens guardadas. Como elas somem depois de `CONVERSATION_RETENTION_DAYS`, a tela avisa quando o período pedido passa desse limite.
+
+Gráficos em SVG próprio (`charts.tsx`, sem biblioteca): série única em `--color-chart-1`, "sem categoria"/"outras" em `--color-chart-muted`, dica ao passar o mouse e botão para ver a mesma informação em tabela.
 
 ### Monitor (`src/server/monitor.ts`)
 

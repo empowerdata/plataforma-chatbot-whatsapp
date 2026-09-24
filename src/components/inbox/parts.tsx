@@ -2,37 +2,43 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import type { BotState, InboxListItem } from "./types";
+import type { BotState, ConversationStatus } from "./types";
 
-type BotDot = InboxListItem["bot"];
-
-const DOT: Record<BotDot, string | null> = {
-  active: "bg-success",
-  paused: "bg-warning",
-  off: "bg-subtle",
-  unavailable: null,
+/** Situação da conversa: rótulo curto, cor do ponto e cor do texto. Cor sempre acompanhada do rótulo. */
+export const STATUS_META: Record<ConversationStatus, { label: string; dot: string; text: string }> = {
+  aguardando: { label: "Aguardando você", dot: "bg-warning", text: "text-warning" },
+  bot: { label: "Bot atendendo", dot: "bg-success", text: "text-success" },
+  equipe: { label: "Com a equipe", dot: "bg-info", text: "text-info" },
+  finalizada: { label: "Finalizada", dot: "bg-subtle", text: "text-muted" },
 };
 
-/** Avatar neutro com iniciais; a bolinha é o único sinal de cor — o estado do bot nesta conversa. */
-export function Avatar({ initials, bot, size = "md" }: { initials: string; bot?: BotDot; size?: "md" | "lg" }) {
-  const dot = bot ? DOT[bot] : null;
+export function StatusLabel({ status, className }: { status: ConversationStatus; className?: string }) {
+  const m = STATUS_META[status];
   return (
-    <span className={cn("relative inline-flex shrink-0 items-center justify-center rounded-full bg-surface-3 font-semibold text-foreground/80", size === "lg" ? "h-14 w-14 text-base" : "h-9 w-9 text-xs")}>
-      {initials}
-      {dot ? <span className={cn("absolute rounded-full ring-2 ring-surface-1", dot, size === "lg" ? "bottom-0.5 right-0.5 h-3 w-3" : "-bottom-0.5 -right-0.5 h-2.5 w-2.5")} /> : null}
+    <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-medium", m.text, className)}>
+      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", m.dot)} />
+      {m.label}
     </span>
   );
 }
 
-export function botDot(state: BotState): BotDot {
-  return state.kind === "active" || state.kind === "off" || state.kind === "paused" ? state.kind : "unavailable";
+/** Avatar neutro com iniciais; o ponto mostra a situação da conversa. */
+export function Avatar({ initials, status, size = "md" }: { initials: string; status?: ConversationStatus; size?: "sm" | "md" | "lg" }) {
+  const dim = { sm: "h-8 w-8 text-[11px]", md: "h-9 w-9 text-xs", lg: "h-12 w-12 text-sm" }[size];
+  const dot = { sm: "h-2.5 w-2.5 -bottom-0.5 -right-0.5", md: "h-2.5 w-2.5 -bottom-0.5 -right-0.5", lg: "h-3 w-3 bottom-0 right-0" }[size];
+  return (
+    <span className={cn("relative inline-flex shrink-0 select-none items-center justify-center rounded-full bg-surface-3 font-semibold text-foreground/75", dim)}>
+      {initials}
+      {status && status !== "finalizada" ? <span className={cn("absolute rounded-full ring-2 ring-surface-1", dot, STATUS_META[status].dot)} /> : null}
+    </span>
+  );
 }
 
-/** Título curto do estado do bot, para o controle no topo da conversa. */
+/** Título curto do estado do bot. */
 export function botLabel(state: BotState): string {
   switch (state.kind) {
     case "active":
-      return "Bot ativo";
+      return "Bot ligado";
     case "paused":
       return "Bot pausado";
     case "off":
@@ -52,11 +58,11 @@ export function botExplanation(state: BotState, audience: "staff" | "client"): s
     case "active":
       return "O bot responde este contato sozinho.";
     case "paused":
-      if (state.reason === "handoff") return `O bot chamou alguém da equipe e fica em silêncio nesta conversa até ${state.until}.`;
-      if (state.reason === "human_reply") return `Alguém da equipe respondeu, então o bot pausou nesta conversa até ${state.until}.`;
+      if (state.reason === "handoff") return `O bot chamou alguém da equipe e fica em silêncio até ${state.until}.`;
+      if (state.reason === "human_reply") return `Alguém da equipe respondeu, então o bot pausou até ${state.until}.`;
       return `O bot está pausado nesta conversa até ${state.until}.`;
     case "off":
-      return "Desligado à mão nesta conversa — só a equipe responde aqui, até alguém religar.";
+      return "Bot desligado nesta conversa: só a equipe responde aqui.";
     case "blocked":
       return "Contato bloqueado: o bot não responde e nenhuma automação roda para ele.";
     case "number_off":
@@ -89,7 +95,7 @@ export function Popover({ trigger, children, align = "start", className }: { tri
     <div ref={ref} className="relative">
       {trigger({ open, toggle: () => setOpen((v) => !v) })}
       {open ? (
-        <div className={cn("absolute top-full z-30 mt-1 min-w-[200px] overflow-hidden rounded-md border border-border-strong bg-surface-2 py-1 shadow-2xl animate-scale-in", align === "end" ? "right-0" : "left-0", className)}>
+        <div className={cn("absolute top-full z-30 mt-1 min-w-[190px] overflow-hidden rounded-lg border border-border-strong bg-surface-2 p-1 shadow-2xl animate-scale-in", align === "end" ? "right-0" : "left-0", className)}>
           {children(() => setOpen(false))}
         </div>
       ) : null}
@@ -103,12 +109,20 @@ export function MenuItem({ onClick, children, tone, active }: { onClick: () => v
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-surface-3",
-        tone === "danger" ? "text-danger" : "text-foreground",
-        active && "text-accent",
+        "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors hover:bg-surface-3",
+        tone === "danger" ? "text-danger" : "text-foreground/90",
+        active && "text-foreground",
       )}
     >
       {children}
     </button>
   );
+}
+
+export function MenuLabel({ children }: { children: React.ReactNode }) {
+  return <div className="px-2.5 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-subtle">{children}</div>;
+}
+
+export function MenuSeparator() {
+  return <div className="my-1 h-px bg-border" />;
 }

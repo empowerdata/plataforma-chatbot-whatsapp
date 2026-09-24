@@ -2,12 +2,16 @@
 
 export type InboxView = "abertas" | "atencao" | "finalizadas" | "todas";
 
-export const INBOX_VIEWS: { id: InboxView; label: string }[] = [
-  { id: "abertas", label: "Em aberto" },
-  { id: "atencao", label: "Precisa de você" },
-  { id: "finalizadas", label: "Finalizadas" },
-  { id: "todas", label: "Todas" },
+export const INBOX_VIEWS: { id: InboxView; label: string; short: string }[] = [
+  { id: "abertas", label: "Conversas em aberto", short: "Abertas" },
+  { id: "atencao", label: "Aguardando alguém da equipe", short: "Aguardando" },
+  { id: "finalizadas", label: "Conversas finalizadas", short: "Finalizadas" },
+  { id: "todas", label: "Todas as conversas", short: "Todas" },
 ];
+
+/** Quantas conversas a lista traz por vez ("carregar mais" soma outro tanto). */
+export const INBOX_PAGE = 60;
+export const INBOX_MAX = 600;
 
 /** Por que o bot está (ou não) respondendo este contato. */
 export type BotState =
@@ -18,6 +22,12 @@ export type BotState =
   | { kind: "number_off" }
   | { kind: "no_bot" };
 
+/**
+ * A situação da conversa, uma só, derivada de tudo o resto:
+ * finalizada > aguardando você (o bot chamou a equipe) > bot atendendo > com a equipe.
+ */
+export type ConversationStatus = "aguardando" | "bot" | "equipe" | "finalizada";
+
 export type InboxListItem = {
   id: string;
   title: string;
@@ -27,10 +37,9 @@ export type InboxListItem = {
   preview: string | null;
   lastAt: string;
   numberLabel: string;
+  clientName: string | null;
   category: string | null;
-  resolved: boolean;
-  needsHuman: boolean;
-  bot: "active" | "off" | "paused" | "unavailable";
+  status: ConversationStatus;
 };
 
 export type InboxThreadItem =
@@ -56,10 +65,12 @@ export type InboxConversation = {
   phone: string;
   numberId: string;
   numberLabel: string;
+  clientName: string | null;
   numberConnected: boolean;
   /** Por quantas horas o bot pausa depois que alguém da equipe responde. */
   pauseHoursOnReply: number;
   category: string | null;
+  status: ConversationStatus;
   resolved: boolean;
   needsHuman: boolean;
   handoffReason: string | null;
@@ -85,7 +96,9 @@ export type InboxFilters = {
   view: InboxView;
   category: string | null;
   numberId: string | null;
+  clientId: string | null;
   search: string;
+  limit: number;
 };
 
 export type ActionResult = { error: string | null };

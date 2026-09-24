@@ -33,6 +33,19 @@
   --color-wa-in: #1f2a35;
   --color-wa-out: #075e54;
 
+  /* Balões da caixa de entrada: tons discretos (o verde do WhatsApp pesava na
+     tela escura). Bot e equipe se distinguem pelo tom e pelo rótulo. */
+  --color-bubble-in: #19222d;
+  --color-bubble-bot: #0f2c28;
+  --color-bubble-team: #13243a;
+
+  /* Gráficos: série única em azul, validado (skill dataviz) contra
+     surface-1 no escuro — faixa de luminosidade, croma e contraste >= 3:1.
+     "muted" é a cor de desênfase ("sem categoria", o resto). */
+  --color-chart-1: #3987e5;
+  --color-chart-muted: #5f6b7a;
+  --color-chart-grid: #1f2833;
+
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", Menlo, Consolas, monospace;
 
