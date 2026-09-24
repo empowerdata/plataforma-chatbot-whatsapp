@@ -55,10 +55,14 @@ qualquer divulgação para alunos.
   disponível" e mostrar o que mudou. Atualizar sozinho sem o aluno pedir
   foi descartado de propósito: uma versão com problema quebraria todas as
   instalações ao mesmo tempo.
-- Canal "estável" antes de divulgar: hoje o instalador pega sempre o que
-  está no `main`, então qualquer mudança publicada chega na hora a quem
-  instala ou atualiza. Separar um ramo/versão estável (o `main` fica para
-  desenvolvimento) e só promover depois de testar.
+- **Duas versões: teste e estável** (decidido pelo Lorennzo em 2026-09-24,
+  fazer antes de divulgar). Hoje o instalador pega sempre o que está no
+  `main`, então qualquer mudança publicada chega na hora a quem instala ou
+  atualiza. Plano: o `main` vira a versão de teste; um ramo `estavel` passa
+  a ser o que o instalador e a atualização dos alunos usam; a VPS atual do
+  Lorennzo acompanha o `main` e serve de ambiente de teste; uma mudança só
+  vai para o `estavel` depois de testada lá. Se ele também atender clientes
+  reais, uma segunda VPS no `estavel` vira a produção dele.
 - Ajustes do que a Fase 0 revelar (cliente HTTP do Evolution, tempo real de
   instalação, capacidade real do VPS recomendado).
 - Vídeo/curso mostrando o passo a passo de instalação e o Playground (para
