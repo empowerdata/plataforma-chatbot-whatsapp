@@ -173,6 +173,7 @@ function toDto(d: ConversationDetail): ConversaDetail {
     needsHuman: c.needs_human,
     handoffReason: c.handoff_reason,
     category: c.category,
+    resolved: c.resolved_at != null,
     messageCount: Number(c.message_count ?? 0),
     botMessageCount: Number(c.bot_message_count ?? 0),
     humanMessageCount: Number(c.human_message_count ?? 0),

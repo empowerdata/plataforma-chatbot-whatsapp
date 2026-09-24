@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAccountOrThrow } from "@/server/auth/guards";
-import { createClient, deleteClient, updateClient } from "@/server/services/clients";
+import { createClient, createClientPortalUser, deleteClient, newClientPortalSetupLink, setClientPortalUserActive, updateClient } from "@/server/services/clients";
 
-type Result = { error: string | null };
+type Result<T = undefined> = { error: string | null; data?: T };
 
-function fail(err: unknown): Result {
+function fail(err: unknown): Result<never> {
   if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "Dados inválidos." };
   return { error: err instanceof Error ? err.message : String(err) };
 }
@@ -67,6 +67,45 @@ export async function deleteClientAction(id: string): Promise<Result> {
     await deleteClient(account.id, id);
     revalidatePath("/clientes");
     return { error: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+const portalAccessSchema = z.object({
+  name: z.string().trim().min(2, "Informe o nome de quem vai acessar."),
+  email: z.string().trim().email("E-mail inválido."),
+});
+
+/** Cria o login do portal do cliente final; devolve o link para definir senha. */
+export async function grantPortalAccessAction(clientId: string, input: z.input<typeof portalAccessSchema>): Promise<Result<{ setupLink: string }>> {
+  try {
+    const { account } = await getAccountOrThrow();
+    const d = portalAccessSchema.parse(input);
+    const res = await createClientPortalUser(account.id, clientId, d);
+    revalidatePath("/clientes");
+    return { error: null, data: { setupLink: res.setupLink } };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function setPortalAccessActiveAction(userId: string, active: boolean): Promise<Result> {
+  try {
+    const { account } = await getAccountOrThrow();
+    await setClientPortalUserActive(account.id, userId, active);
+    revalidatePath("/clientes");
+    return { error: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function newPortalSetupLinkAction(userId: string): Promise<Result<{ setupLink: string }>> {
+  try {
+    const { account } = await getAccountOrThrow();
+    const setupLink = await newClientPortalSetupLink(account.id, userId);
+    return { error: null, data: { setupLink } };
   } catch (err) {
     return fail(err);
   }

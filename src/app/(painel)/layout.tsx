@@ -18,6 +18,9 @@ export default async function PainelLayout({ children }: { children: React.React
   const db = await ensureReady();
   const user = await requireUser();
 
+  // Login de cliente final (portal escopado a um client_id) nunca vê o painel da equipe.
+  if (user.role === "client") redirect("/portal");
+
   // "Administrador da plataforma" de verdade só é quem NÃO tem conta própria
   // vinculada — ou seja, gerencia várias contas hospedadas por fora. Numa
   // instalação de conta única, quem instalou é super_admin mas já tem a

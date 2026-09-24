@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Ban, Bot, CheckCircle2, Clock, Pencil, ShieldCheck, Tag, User } from "lucide-react";
+import { Ban, Bot, CheckCircle2, Clock, Flag, Pencil, RotateCcw, ShieldCheck, Tag, User } from "lucide-react";
 import { Badge, Button, Card, EmptyState } from "@/components/ui/primitives";
 import { useDialogs } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { blockContactAction, pauseBotAction, resolveConversationAction, setCategoryAction } from "../actions";
+import { blockContactAction, pauseBotAction, resolveConversationAction, setCategoryAction, setResolvedAction } from "../actions";
 
 export type ThreadItem =
   | { kind: "meta"; id: string; text: string }
@@ -22,6 +22,7 @@ export type ConversaDetail = {
   needsHuman: boolean;
   handoffReason: string | null;
   category: string | null;
+  resolved: boolean;
   messageCount: number;
   botMessageCount: number;
   humanMessageCount: number;
@@ -70,6 +71,8 @@ export function ConversaClient({ detail }: { detail: ConversaDetail }) {
 
   const handleResolve = () => run("resolve", () => resolveConversationAction(detail.id), "Bot liberado para esta conversa.");
   const handlePause = () => run("pause", () => pauseBotAction(detail.id, 24), "Bot pausado por 24 horas nesta conversa.");
+  const handleToggleResolved = () =>
+    run("toggle-resolved", () => setResolvedAction(detail.id, !detail.resolved), detail.resolved ? "Conversa reaberta." : "Conversa marcada como finalizada.");
 
   const handleBlock = async () => {
     if (!detail.contact.isBlocked) {
@@ -163,6 +166,7 @@ export function ConversaClient({ detail }: { detail: ConversaDetail }) {
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge tone="neutral">{detail.numberLabel}</Badge>
             <Badge tone={badge.tone}>{badge.label}</Badge>
+            <Badge tone={detail.resolved ? "success" : "neutral"}>{detail.resolved ? "finalizada" : "em aberto"}</Badge>
           </div>
           {detail.handoffReason ? <p className="text-xs text-warning">{detail.handoffReason}</p> : null}
           <button type="button" onClick={handleEditCategory} disabled={busy === "category"} className="flex w-full items-center gap-1.5 rounded-md border border-dashed border-border-strong px-2 py-1.5 text-xs text-muted transition-colors hover:border-accent/50 hover:text-foreground">
@@ -181,8 +185,12 @@ export function ConversaClient({ detail }: { detail: ConversaDetail }) {
 
         <Card className="space-y-2 p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-subtle">Ações</div>
+          <Button variant="secondary" size="sm" className="w-full justify-start" loading={busy === "toggle-resolved"} onClick={handleToggleResolved}>
+            {detail.resolved ? <RotateCcw className="h-3.5 w-3.5" /> : <Flag className="h-3.5 w-3.5" />}
+            {detail.resolved ? "Reabrir conversa" : "Marcar como finalizada"}
+          </Button>
           <Button variant="secondary" size="sm" className="w-full justify-start" loading={busy === "resolve"} onClick={handleResolve}>
-            <CheckCircle2 className="h-3.5 w-3.5" /> Liberar o bot / marcar resolvido
+            <CheckCircle2 className="h-3.5 w-3.5" /> Liberar o bot
           </Button>
           <Button variant="secondary" size="sm" className="w-full justify-start" loading={busy === "pause"} onClick={handlePause}>
             <Clock className="h-3.5 w-3.5" /> Pausar bot por 24h

@@ -7,8 +7,19 @@ Para o histórico de decisões e o porquê de cada uma, ver
 
 - **Painel completo**: login, contas, servidores Evolution, eventos, clientes,
   números com QR/pareamento, bots com Studio + base de conhecimento +
-  playground, conversas (com categorização e filtros), integrações (Supabase
-  e OpenAI), configurações, simulador de WhatsApp para dev.
+  playground, conversas (com categorização, status de CRM aberto/finalizado e
+  filtros), integrações (Supabase e OpenAI), configurações, simulador de
+  WhatsApp para dev.
+- **Portal do cliente final** (`/portal`): login próprio (`role: "client"`,
+  escopado a um `client_id`), nunca alcança dados de outro cliente da mesma
+  conta nem o painel da equipe (reforçado em `requireAccount`/
+  `getAccountOrThrow`, não só escondido na UI). O aluno concede o acesso pela
+  tela de Clientes (link de "definir senha", igual ao convite de equipe). O
+  cliente final vê suas conversas, categoriza, marca como finalizada/reabre,
+  e tem uma visão leve de métricas (em aberto, finalizadas no período, por
+  categoria) — sem Kanban ainda. Não inclui responder pelo painel nem
+  acompanhar a conversa em tempo real (a tela não atualiza sozinha); ver
+  "Fase 3" abaixo.
 - **Engine**: debounce por contato, RAG com pgvector (ou busca textual sem
   chave), ferramentas (atendente humano, cardápio, localização,
   categorização automática da conversa), pausa quando humano responde,
@@ -50,12 +61,14 @@ qualquer divulgação para alunos.
 ## Fase 3 — produto
 
 - Inbox com resposta humana pela plataforma (hoje o dono responde pelo
-  celular).
-- **Portal do cliente final** (a pizzaria vê os próprios leads e
-  estatísticas). Vira a escada de upsell do aluno para o cliente dele.
-- **Kanban de leads (mini-CRM)**, usando a categorização de conversas já
-  construída como base — cada categoria pode virar uma coluna, sem
-  retrabalho de schema.
+  celular) — inclui dar essa mesma caixa de resposta ao cliente final no
+  portal, para ele poder assumir o atendimento sem abrir o WhatsApp Web. A
+  função de enviar mensagem via Evolution já existe (reaproveitada do bot);
+  falta a UI de resposta e a tela atualizar sozinha (polling simples, sem
+  necessidade de conexão permanente).
+- **Kanban de leads (mini-CRM)**, usando a categorização de conversas e o
+  status aberto/finalizado já construídos como base — cada categoria pode
+  virar uma coluna, sem retrabalho de schema.
 - Canal oficial do WhatsApp (Meta Cloud API) como alternativa ao
   Evolution/Baileys.
 - Domínio e marca próprios por instalação (o aluno já pode fazer isso hoje

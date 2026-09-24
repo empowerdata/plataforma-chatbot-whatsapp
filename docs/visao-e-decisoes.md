@@ -124,6 +124,37 @@ vinculada) — um aluno numa instalação de conta única nunca vê essa camada.
 Isso já é assim no código, não só na intenção: foi um ajuste feito depois que
 o próprio Lorennzo testou a interface e achou as duas camadas confusas.
 
+### O portal do cliente final é uma terceira camada de acesso, nunca o painel do aluno
+
+Além de `super_admin` (plataforma/dono da conta) e `member` (equipe do aluno),
+existe o papel `client`: um login vinculado a um `client_id` específico
+(`users.client_id`), nunca à conta inteira. É o acesso que o aluno concede a
+um cliente dele (o dono da pizzaria, o personal trainer) para ver e gerenciar
+só o próprio atendimento — nunca os outros clientes da mesma conta, nem
+configuração de bot, integrações ou billing.
+
+Essa separação é reforçada em duas camadas, de propósito — não basta esconder
+o menu:
+
+1. `requireAccount()`/`getAccountOrThrow()` (usados por todo o painel da
+   equipe) rejeitam explicitamente `role === "client"`, redirecionando para
+   `/portal`. Um login de cliente nunca alcança uma página ou server action
+   do painel da equipe, mesmo se souber a URL.
+2. Todo serviço do portal (`src/server/services/portal.ts`) filtra
+   explicitamente por `client_id`, nunca só por `account_id` — segue o mesmo
+   princípio já documentado para as queries do aluno na plataforma de cursos:
+   confiar só em RLS ou só em esconder a UI não basta, o filtro tem que estar
+   explícito em cada consulta. Um cliente não pode ver a conversa de outro
+   cliente mesmo adivinhando um id de conversa.
+
+O portal mostra hoje: conversas (lidas, não respondidas — sem caixa de
+resposta), categoria (o bot categoriza, o cliente pode corrigir) e um status
+leve de CRM — "em aberto" / "finalizada" (`conversations.resolved_at`,
+separado do `status` técnico que controla o bot, porque uma conversa pode
+fechar tecnicamente por timeout e continuar em aberto como lead). "Em aberto"
+nunca é filtrado por período — um lead de 40 dias atrás não pode sumir
+sozinho da lista; só a contagem de "finalizadas" é por período, como métrica.
+
 ### O Evolution (WhatsApp) nunca fica público
 
 Tanto no VPS quanto no Render, o servidor Evolution API não tem domínio nem
@@ -199,6 +230,8 @@ reverificar depois de mexer no código relacionado).
 | Filtro de período na Visão Geral (7/30/90 dias) | não | sim |
 | Limpeza automática de conversas antigas (30 dias) | sim | não (roda uma vez por dia, difícil de observar ao vivo) |
 | Admin: contas, servidores, eventos | parcial | sim |
+| Status de CRM (em aberto/finalizado), independente do status técnico do bot | não | sim |
+| Portal do cliente final (`/portal`): login escopado, conceder acesso, categorizar, finalizar/reabrir, métricas | não | sim (dois perfis, dados isolados por cliente confirmados ao vivo) |
 | Instalador do VPS (`infra/provision.sh`) | lógica isolada testada | **não** — precisa de um VPS real |
 | `render.yaml` (instalação no Render) | validado contra o schema oficial | **sim**, uma vez, ao vivo (custo real medido) |
 
@@ -210,14 +243,16 @@ reverificar depois de mexer no código relacionado).
   de qualquer divulgação.
 - **Termo de uso.** Precisa deixar explícito o que está na tabela de
   responsabilidades acima: software entregue como está, operação é do aluno.
-- **Portal do cliente final** (a pizzaria vê os próprios leads e estatísticas
-  num painel simplificado). Ideia validada e com valor claro — vira a escada
-  de upsell que o próprio aluno pode vender para o cliente dele — mas
-  propositalmente adiada até o núcleo estar validado com uso real.
+- **Inbox com resposta humana pela plataforma**, incluindo dar essa mesma
+  caixa de resposta ao cliente final no portal (hoje ele só categoriza e
+  finaliza; para responder, ainda precisa do WhatsApp de verdade). A função
+  de enviar mensagem via Evolution já existe, reaproveitada do bot — falta a
+  UI e a tela atualizar sozinha (polling simples).
 - **Kanban de leads (mini-CRM).** Ideia do Lorennzo, explicitamente para uma
-  segunda fase. A categorização de conversas já construída é a base de dados
-  que esse Kanban vai usar (cada categoria vira uma coluna) — não vai
-  precisar de retrabalho de schema quando chegar a hora.
+  segunda fase. A categorização de conversas e o status aberto/finalizado já
+  construídos são a base de dados que esse Kanban vai usar (cada categoria
+  vira uma coluna) — não vai precisar de retrabalho de schema quando chegar
+  a hora.
 - **Canal oficial do WhatsApp (Cloud API da Meta)** como alternativa ao
   Evolution/Baileys, para quem cresce e quer sair da via não oficial.
 - **Vídeo de demonstração do Playground** para mostrar o produto a um

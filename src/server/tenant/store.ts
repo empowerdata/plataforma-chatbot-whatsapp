@@ -35,6 +35,8 @@ export type Conversation = {
   category: string | null;
   created_at: Date;
   closed_at: Date | null;
+  /** Marcação de CRM (aberto/finalizado), separada do status técnico do atendimento. */
+  resolved_at: Date | null;
 };
 
 export type MessageRow = {
@@ -178,6 +180,11 @@ export class TenantStore {
     await this.db.query(`update chatbot.conversations set category = $2 where id = $1`, [id, category]);
   }
 
+  /** Marca (ou desmarca) a conversa como finalizada — gestão de CRM, à mão. */
+  async setConversationResolved(id: string, resolved: boolean): Promise<void> {
+    await this.db.query(`update chatbot.conversations set resolved_at = case when $2 then now() else null end where id = $1`, [id, resolved]);
+  }
+
   /** Categorias em uso entre os números informados, para alimentar o filtro da lista. */
   async listCategoriesInUse(numberIds: string[]): Promise<string[]> {
     if (!numberIds.length) return [];
@@ -188,7 +195,7 @@ export class TenantStore {
     return rows.map((r) => r.category);
   }
 
-  async listConversations(input: { numberId?: string; numberIds?: string[]; needsHuman?: boolean; category?: string; limit?: number; offset?: number }): Promise<(Conversation & { contact_phone: string | null; contact_name: string | null; contact_push_name: string | null })[]> {
+  async listConversations(input: { numberId?: string; numberIds?: string[]; needsHuman?: boolean; category?: string; resolved?: boolean; limit?: number; offset?: number }): Promise<(Conversation & { contact_phone: string | null; contact_name: string | null; contact_push_name: string | null })[]> {
     const where: string[] = [];
     const params: unknown[] = [];
     if (input.numberId) {
@@ -203,6 +210,7 @@ export class TenantStore {
       params.push(input.category);
       where.push(`c.category = $${params.length}`);
     }
+    if (input.resolved !== undefined) where.push(input.resolved ? `c.resolved_at is not null` : `c.resolved_at is null`);
     params.push(input.limit ?? 50);
     const limitIdx = params.length;
     params.push(input.offset ?? 0);
@@ -216,6 +224,33 @@ export class TenantStore {
        limit $${limitIdx} offset $${offsetIdx}`,
       params,
     );
+  }
+
+  /** Contagem simples (aberto/finalizado, opcionalmente só quem teve atividade recente). */
+  async countConversations(input: { numberIds: string[]; resolved?: boolean; activeSince?: Date }): Promise<number> {
+    if (!input.numberIds.length) return 0;
+    const where: string[] = [`number_id = any($1::uuid[])`];
+    const params: unknown[] = [input.numberIds];
+    if (input.resolved !== undefined) where.push(input.resolved ? `resolved_at is not null` : `resolved_at is null`);
+    if (input.activeSince) {
+      params.push(input.activeSince);
+      where.push(`last_message_at >= $${params.length}`);
+    }
+    const rows = await this.db.query<{ n: number | string }>(`select count(*) as n from chatbot.conversations where ${where.join(" and ")}`, params);
+    return Number(rows[0]?.n ?? 0);
+  }
+
+  /** Quantas conversas em aberto por categoria — alimenta o painel de métricas leve do portal. */
+  async categoryBreakdown(input: { numberIds: string[]; resolved?: boolean }): Promise<{ category: string; n: number }[]> {
+    if (!input.numberIds.length) return [];
+    const where: string[] = [`number_id = any($1::uuid[])`, `category is not null`];
+    const params: unknown[] = [input.numberIds];
+    if (input.resolved !== undefined) where.push(input.resolved ? `resolved_at is not null` : `resolved_at is null`);
+    const rows = await this.db.query<{ category: string; n: number | string }>(
+      `select category, count(*) as n from chatbot.conversations where ${where.join(" and ")} group by category order by n desc`,
+      params,
+    );
+    return rows.map((r) => ({ category: r.category, n: Number(r.n) }));
   }
 
   // ------------------------------------------------------------- mensagens

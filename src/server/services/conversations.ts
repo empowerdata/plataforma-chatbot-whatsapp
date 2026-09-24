@@ -15,12 +15,12 @@ async function accountNumbers(accountId: string) {
   return db.select({ id: schema.numbers.id, label: schema.numbers.label }).from(schema.numbers).where(eq(schema.numbers.accountId, accountId));
 }
 
-export async function listConversations(accountId: string, opts: { numberId?: string; needsHuman?: boolean; category?: string; limit?: number; offset?: number } = {}): Promise<ConversationListItem[]> {
+export async function listConversations(accountId: string, opts: { numberId?: string; needsHuman?: boolean; category?: string; resolved?: boolean; limit?: number; offset?: number } = {}): Promise<ConversationListItem[]> {
   const nums = await accountNumbers(accountId);
   if (!nums.length) return [];
   const labels = new Map(nums.map((n) => [n.id, n.label]));
   const store = await getTenantStore(accountId);
-  const rows = await store.listConversations({ numberId: opts.numberId, numberIds: opts.numberId ? undefined : nums.map((n) => n.id), needsHuman: opts.needsHuman, category: opts.category, limit: opts.limit, offset: opts.offset });
+  const rows = await store.listConversations({ numberId: opts.numberId, numberIds: opts.numberId ? undefined : nums.map((n) => n.id), needsHuman: opts.needsHuman, category: opts.category, resolved: opts.resolved, limit: opts.limit, offset: opts.offset });
   return rows.map((r) => ({ ...r, numberLabel: labels.get(r.number_id) ?? "—" }));
 }
 
@@ -78,4 +78,11 @@ export async function setConversationCategory(accountId: string, conversationId:
   if (!detail) throw new Error("Conversa não encontrada.");
   const store = await getTenantStore(accountId);
   await store.setConversationCategory(conversationId, category);
+}
+
+export async function setConversationResolved(accountId: string, conversationId: string, resolved: boolean): Promise<void> {
+  const detail = await getConversationDetail(accountId, conversationId);
+  if (!detail) throw new Error("Conversa não encontrada.");
+  const store = await getTenantStore(accountId);
+  await store.setConversationResolved(conversationId, resolved);
 }

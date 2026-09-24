@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getAccountOrThrow } from "@/server/auth/guards";
-import { resolveConversation, setBotPausedForContact, setContactBlocked, setConversationCategory } from "@/server/services/conversations";
+import { resolveConversation, setBotPausedForContact, setContactBlocked, setConversationCategory, setConversationResolved } from "@/server/services/conversations";
 import { TenantNotConfigured } from "@/server/tenant";
 
 type Result = { error: string | null };
@@ -69,6 +69,19 @@ export async function setCategoryAction(id: string, category: string | null): Pr
     assertId(id);
     const { account } = await getAccountOrThrow();
     await setConversationCategory(account.id, id, category && category.trim() ? category.trim().slice(0, 40) : null);
+    revalidate(id);
+    return { error: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Marca a conversa como finalizada (ou reabre) — gestão de CRM, independente do bot. */
+export async function setResolvedAction(id: string, resolved: boolean): Promise<Result> {
+  try {
+    assertId(id);
+    const { account } = await getAccountOrThrow();
+    await setConversationResolved(account.id, id, resolved);
     revalidate(id);
     return { error: null };
   } catch (err) {

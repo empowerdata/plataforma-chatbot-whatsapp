@@ -22,7 +22,7 @@ import type { NumberSettings } from "@/shared/number-settings";
  * (ver src/server/tenant/schema.sql).
  */
 
-export const userRole = pgEnum("user_role", ["super_admin", "member"]);
+export const userRole = pgEnum("user_role", ["super_admin", "member", "client"]);
 export const accountStatus = pgEnum("account_status", ["active", "suspended"]);
 export const nodeKind = pgEnum("node_kind", ["http", "fake"]);
 export const numberStatus = pgEnum("number_status", ["created", "qr", "connecting", "open", "close", "banned"]);
@@ -70,6 +70,8 @@ export const users = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     accountId: uuid("account_id").references(() => accounts.id, { onDelete: "cascade" }),
+    /** Só para role "client": o negócio (chatbot.clients) que este login pode ver — nunca a conta inteira. */
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
     email: text("email").notNull(),
     name: text("name").notNull(),
     passwordHash: text("password_hash"),
@@ -78,7 +80,7 @@ export const users = pgTable(
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     ...timestamps,
   },
-  (t) => [uniqueIndex("users_email_idx").on(sql`lower(${t.email})`), index("users_account_idx").on(t.accountId)],
+  (t) => [uniqueIndex("users_email_idx").on(sql`lower(${t.email})`), index("users_account_idx").on(t.accountId), index("users_client_idx").on(t.clientId)],
 );
 
 export const sessions = pgTable(

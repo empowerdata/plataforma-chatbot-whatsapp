@@ -130,3 +130,19 @@ insert into chatbot.meta (key, value)
 values ('schema_version', '2')
 on conflict (key) do update set value = excluded.value, updated_at = now();
 `;
+
+/**
+ * v3: status de CRM (aberto/finalizado), independente do "status" técnico do
+ * atendimento (open/human/closed, que controla o bot). Uma conversa pode
+ * ficar tecnicamente "closed" por timeout e continuar em aberto como lead —
+ * por isso é um campo separado, marcado à mão pela equipe ou pelo cliente
+ * no portal.
+ */
+export const TENANT_SCHEMA_V3 = `
+alter table chatbot.conversations add column if not exists resolved_at timestamptz;
+create index if not exists conversations_resolved_idx on chatbot.conversations (number_id, resolved_at);
+
+insert into chatbot.meta (key, value)
+values ('schema_version', '3')
+on conflict (key) do update set value = excluded.value, updated_at = now();
+`;

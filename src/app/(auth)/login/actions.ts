@@ -29,6 +29,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   await db.update(schema.users).set({ lastLoginAt: new Date() }).where(eq(schema.users.id, user.id));
   await createSession(user.id);
   const next = parsed.data.next && parsed.data.next.startsWith("/") && !parsed.data.next.startsWith("//") ? parsed.data.next : "/";
+  if (user.role === "client") redirect(next === "/" ? "/portal" : next);
   // Super admin sem conta própria (instalação multi-conta hospedada) escolhe a conta em
   // Admin → Contas; com conta própria (instalação de conta única) cai direto no painel dela.
   redirect(user.role === "super_admin" && !user.accountId && next === "/" ? "/admin/contas" : next);

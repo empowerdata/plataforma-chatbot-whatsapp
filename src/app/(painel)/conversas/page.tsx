@@ -20,12 +20,14 @@ export default async function ConversasPage(props: PageProps<"/conversas">) {
   const numberId = numeroParam && numbers.some((n) => n.number.id === numeroParam) ? numeroParam : undefined;
   const needsHuman = searchParams.humano === "1";
   const category = typeof searchParams.categoria === "string" ? searchParams.categoria : undefined;
+  const resolvido = searchParams.resolvido;
+  const resolved = resolvido === "1" ? true : resolvido === "0" ? false : undefined;
 
   let rows: ConversationRow[] = [];
   let categories: string[] = [];
   let problem: { title: string; description: string } | null = null;
   try {
-    const [items, cats] = await Promise.all([listConversations(account.id, { numberId, needsHuman, category, limit: 100 }), listUsedCategories(account.id)]);
+    const [items, cats] = await Promise.all([listConversations(account.id, { numberId, needsHuman, category, resolved, limit: 100 }), listUsedCategories(account.id)]);
     categories = cats;
     rows = items.map((c) => {
       const name = c.contact_name ?? c.contact_push_name ?? null;
@@ -38,6 +40,7 @@ export default async function ConversasPage(props: PageProps<"/conversas">) {
         status: c.status,
         needsHuman: c.needs_human,
         category: c.category,
+        resolved: c.resolved_at != null,
         lastMessageAt: formatRelative(c.last_message_at),
         messageCount: Number(c.message_count ?? 0),
       };
@@ -66,7 +69,7 @@ export default async function ConversasPage(props: PageProps<"/conversas">) {
           }
         />
       ) : (
-        <ConversasClient numbers={numbers.map((n) => ({ id: n.number.id, label: n.number.label }))} numberId={numberId ?? null} needsHuman={needsHuman} category={category ?? null} categories={categories} rows={rows} />
+        <ConversasClient numbers={numbers.map((n) => ({ id: n.number.id, label: n.number.label }))} numberId={numberId ?? null} needsHuman={needsHuman} category={category ?? null} categories={categories} resolved={resolved ?? null} rows={rows} />
       )}
     </div>
   );

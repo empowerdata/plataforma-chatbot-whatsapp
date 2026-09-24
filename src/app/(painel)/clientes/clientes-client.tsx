@@ -1,12 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Building2, MapPin, Pencil, Phone, Plus, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Building2, KeyRound, MapPin, Pencil, Phone, Plus, Trash2 } from "lucide-react";
 import { Modal, useDialogs } from "@/components/ui/dialog";
-import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Textarea } from "@/components/ui/primitives";
+import { Badge, Button, Card, CopyBox, EmptyState, Field, Input, PageHeader, Textarea } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/toast";
 import { formatPhone } from "@/lib/utils";
-import { createClientAction, deleteClientAction, updateClientAction } from "./actions";
+import { createClientAction, deleteClientAction, grantPortalAccessAction, newPortalSetupLinkAction, setPortalAccessActiveAction, updateClientAction } from "./actions";
+
+type PortalUser = { id: string; name: string; email: string; isActive: boolean };
 
 type ClienteItem = {
   id: string;
@@ -19,6 +22,7 @@ type ClienteItem = {
   numbers: number;
   connected: number;
   createdAt: string;
+  portalUser: PortalUser | null;
 };
 
 const SEGMENT_SUGGESTIONS = ["Pizzaria / delivery", "Restaurante", "Salão / barbearia", "Clínica / consultório", "Loja / comércio", "Imobiliária", "Serviços", "Outro"];
@@ -27,6 +31,7 @@ export function ClientesClient({ clients }: { clients: ClienteItem[] }) {
   const toast = useToast();
   const { confirmDialog } = useDialogs();
   const [editing, setEditing] = React.useState<ClienteItem | null | undefined>(undefined);
+  const [portalFor, setPortalFor] = React.useState<ClienteItem | null>(null);
   const [busyId, setBusyId] = React.useState<string | null>(null);
 
   async function onDelete(client: ClienteItem) {
@@ -120,12 +125,24 @@ export function ClientesClient({ clients }: { clients: ClienteItem[] }) {
                 </span>
                 <span>{c.createdAt}</span>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setPortalFor(c)}
+                className="mt-2 flex w-full items-center gap-1.5 rounded-md border border-dashed border-border-strong px-2 py-1.5 text-xs text-muted transition-colors hover:border-accent/50 hover:text-foreground"
+              >
+                <KeyRound className="h-3.5 w-3.5 shrink-0" />
+                <span className="flex-1 truncate text-left">
+                  {c.portalUser ? (c.portalUser.isActive ? `Portal ativo · ${c.portalUser.email}` : `Portal desativado · ${c.portalUser.email}`) : "Cliente ainda sem acesso ao portal"}
+                </span>
+              </button>
             </Card>
           ))}
         </div>
       )}
 
       <ClienteModal open={editing !== undefined} client={editing ?? null} onClose={() => setEditing(undefined)} />
+      <PortalAccessModal client={portalFor} onClose={() => setPortalFor(null)} />
     </div>
   );
 }
@@ -212,6 +229,107 @@ function ClienteModal({ open, client, onClose }: { open: boolean; client: Client
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações internas sobre este cliente" />
         </Field>
       </form>
+    </Modal>
+  );
+}
+
+function PortalAccessModal({ client, onClose }: { client: ClienteItem | null; onClose: () => void }) {
+  const toast = useToast();
+  const router = useRouter();
+  const [name, setName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [link, setLink] = React.useState<string | null>(null);
+  const [pending, startTransition] = React.useTransition();
+
+  React.useEffect(() => {
+    setName("");
+    setEmail("");
+    setLink(null);
+  }, [client?.id]);
+
+  if (!client) return null;
+  const portalUser = client.portalUser;
+
+  const create = (e: React.FormEvent) => {
+    e.preventDefault();
+    startTransition(async () => {
+      const res = await grantPortalAccessAction(client.id, { name, email });
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      setLink(res.data?.setupLink ?? null);
+      toast.success("Acesso criado.");
+      router.refresh();
+    });
+  };
+
+  const toggleActive = () => {
+    if (!portalUser) return;
+    startTransition(async () => {
+      const res = await setPortalAccessActiveAction(portalUser.id, !portalUser.isActive);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(portalUser.isActive ? "Portal desativado." : "Portal reativado.");
+      router.refresh();
+    });
+  };
+
+  const regenerate = () => {
+    if (!portalUser) return;
+    startTransition(async () => {
+      const res = await newPortalSetupLinkAction(portalUser.id);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      setLink(res.data?.setupLink ?? null);
+    });
+  };
+
+  return (
+    <Modal open={!!client} onClose={onClose} title={`Portal de ${client.name}`} footer={<Button variant="ghost" onClick={onClose}>Fechar</Button>}>
+      <div className="space-y-4">
+        <p className="text-xs text-muted">
+          Um acesso próprio e restrito: {client.name} vê só as conversas e o desempenho dele, nunca os outros clientes da sua conta.
+        </p>
+
+        {!portalUser ? (
+          <form className="space-y-3" onSubmit={create}>
+            <Field label="Nome de quem vai acessar">
+              <Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: nome do responsável" />
+            </Field>
+            <Field label="E-mail de acesso">
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@cliente.com" />
+            </Field>
+            <Button type="submit" loading={pending} className="w-full justify-center">
+              Criar acesso ao portal
+            </Button>
+          </form>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between rounded-md border border-border bg-surface-2 px-3 py-2 text-sm">
+              <div className="min-w-0">
+                <div className="truncate font-medium text-foreground">{portalUser.name}</div>
+                <div className="truncate text-xs text-muted">{portalUser.email}</div>
+              </div>
+              <Badge tone={portalUser.isActive ? "success" : "neutral"}>{portalUser.isActive ? "ativo" : "desativado"}</Badge>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" className="flex-1" loading={pending} onClick={regenerate}>
+                Gerar novo link de acesso
+              </Button>
+              <Button variant={portalUser.isActive ? "danger" : "secondary"} size="sm" className="flex-1" loading={pending} onClick={toggleActive}>
+                {portalUser.isActive ? "Desativar" : "Reativar"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {link ? <CopyBox label="Link para o cliente definir a senha (envie por WhatsApp ou e-mail)" value={link} /> : null}
+      </div>
     </Modal>
   );
 }
