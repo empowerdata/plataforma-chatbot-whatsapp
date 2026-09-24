@@ -4,6 +4,7 @@ import fs from "node:fs";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import * as schema from "./schema";
 import { env } from "../env";
+import { ensureWritableDir } from "../pglite-dir";
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
@@ -16,6 +17,7 @@ async function connectPglite(): Promise<Db> {
   const { migrate } = await import("drizzle-orm/pglite/migrator");
   const dataDir = path.join(env.DATA_DIR, "control");
   fs.mkdirSync(dataDir, { recursive: true });
+  ensureWritableDir(dataDir);
   const client = await PGlite.create({ dataDir, extensions: { vector } });
   const db = drizzle({ client, schema });
   await migrate(db, { migrationsFolder: MIGRATIONS });

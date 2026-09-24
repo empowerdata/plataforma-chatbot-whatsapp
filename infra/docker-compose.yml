@@ -1,5 +1,6 @@
 # =============================================================================
-# Servidor completo num VPS só: Evolution API + Postgres + Redis + Painel + Caddy (HTTPS)
+# Servidor completo num VPS só: Evolution API + Postgres + Redis + Painel +
+# banco das conversas + Caddy (HTTPS)
 #
 # Não edite este arquivo nem os .env na mão — rode infra/provision.sh, ele faz
 # as perguntas e gera tudo sozinho. Ver docs/instalar-vps.md para o passo a
@@ -33,6 +34,25 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Banco das conversas (contatos, mensagens, base de conhecimento vetorizada).
+  # Separado do "postgres" acima de propósito: precisa da extensão pgvector, e
+  # trocar a imagem do banco que já guarda a sessão do WhatsApp arriscaria as
+  # instalações que já existem. Com ele, o aluno não precisa de Supabase.
+  dados:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: conversas
+    volumes:
+      - dados_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -76,6 +96,7 @@ services:
       NODE_ENV: production
       APP_URL: https://${APP_DOMAIN}
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/chatbot
+      DATA_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@dados:5432/conversas
       DEV_SIMULATOR: "0"
       # Evolution já vem junto nesta mesma instalação: cadastrada sozinha no
       # boot, sem precisar abrir Admin → Servidores.
@@ -85,6 +106,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      dados:
+        condition: service_healthy
     expose:
       - "3000"
 
@@ -92,5 +115,6 @@ volumes:
   caddy_data:
   caddy_config:
   postgres_data:
+  dados_data:
   redis_data:
   evolution_instances:

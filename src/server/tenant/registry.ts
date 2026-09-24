@@ -5,16 +5,17 @@ import { decryptSecret } from "../crypto";
 import { env } from "../env";
 import { createPgliteExecutor, createPostgresExecutor, tenantPgliteDir, type SqlExecutor } from "./executor";
 import { TenantStore } from "./store";
-import { TENANT_SCHEMA_V1, TENANT_SCHEMA_V2, TENANT_SCHEMA_V3 } from "./schema-sql";
+import { TENANT_SCHEMA_V1, TENANT_SCHEMA_V2, TENANT_SCHEMA_V3, TENANT_SCHEMA_V4 } from "./schema-sql";
 
 /** Versão atual do schema do aluno. Ao mudar schema.sql, incremente e adicione uma migração. */
-export const TENANT_SCHEMA_VERSION = 3;
+export const TENANT_SCHEMA_VERSION = 4;
 
 /** Scripts por versão: a instalação roda todos os que faltam, em ordem. */
 const MIGRATIONS: { version: number; sql: string }[] = [
   { version: 1, sql: TENANT_SCHEMA_V1 },
   { version: 2, sql: TENANT_SCHEMA_V2 },
   { version: 3, sql: TENANT_SCHEMA_V3 },
+  { version: 4, sql: TENANT_SCHEMA_V4 },
 ];
 
 export class TenantNotConfigured extends Error {
@@ -27,14 +28,21 @@ type Entry = { executor: SqlExecutor; store: TenantStore; key: string };
 const g = globalThis as unknown as { __tenants?: Map<string, Promise<Entry>> };
 const cache = (g.__tenants ??= new Map());
 
-/** Onde está o banco desta conta: URL real ou PGlite local (dev). */
-async function resolveTarget(accountId: string): Promise<{ key: string; url?: string; dir?: string }> {
+type Target = { key: string; url?: string; dir?: string };
+
+/**
+ * Onde está o banco desta conta, nesta ordem: o Supabase que o aluno
+ * conectou (opcional, avançado) → o Postgres do próprio servidor
+ * (DATA_DATABASE_URL, padrão de toda instalação própria) → PGlite local (dev).
+ */
+async function resolveTarget(accountId: string): Promise<Target> {
   const db = await getDb();
   const [integ] = await db.select().from(schema.integrations).where(eq(schema.integrations.accountId, accountId)).limit(1);
   if (integ?.supabaseDbUrlEnc) {
     const url = decryptSecret(integ.supabaseDbUrlEnc);
     return { key: `pg:${url}`, url };
   }
+  if (env.DATA_DATABASE_URL) return { key: `pg:${env.DATA_DATABASE_URL}`, url: env.DATA_DATABASE_URL };
   if (env.devSimulator || !env.isProd) {
     const dir = tenantPgliteDir(accountId);
     return { key: `pglite:${dir}`, dir };
@@ -42,12 +50,10 @@ async function resolveTarget(accountId: string): Promise<{ key: string; url?: st
   throw new TenantNotConfigured();
 }
 
-async function open(target: { key: string; url?: string; dir?: string }): Promise<Entry> {
+/** Toda abertura garante o schema na versão atual (idempotente) — uma atualização do painel nunca deixa o banco de conversas para trás. */
+async function open(target: Target): Promise<Entry> {
   const executor = target.url ? await createPostgresExecutor(target.url) : await createPgliteExecutor(target.dir!);
-  if (!target.url) {
-    // PGlite local: instala/atualiza o schema automaticamente.
-    await installSchema(executor);
-  }
+  await installSchema(executor);
   return { executor, store: new TenantStore(executor), key: target.key };
 }
 

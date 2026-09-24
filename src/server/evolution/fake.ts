@@ -49,9 +49,19 @@ export type FakeInstance = {
 
 type Deliver = (url: string, payload: unknown) => Promise<void>;
 
+/**
+ * Entrega o webhook direto no motor, no mesmo processo (mesmos passos da rota
+ * /api/webhooks/evolution/[token]). Antes era um POST para o webhookUrl
+ * gravado, que usa APP_URL (padrão localhost:3000): com o painel em outra
+ * porta, as mensagens simuladas se perdiam em silêncio.
+ */
 const defaultDeliver: Deliver = async (url, payload) => {
   try {
-    await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+    const token = url.split("/").pop() ?? "";
+    const [{ getDb, schema }, { eq }, { parseWebhook }, { handleWebhookEvent }] = await Promise.all([import("../db"), import("drizzle-orm"), import("./webhook-parser"), import("../engine/inbound")]);
+    const db = await getDb();
+    const [n] = await db.select({ id: schema.numbers.id }).from(schema.numbers).where(eq(schema.numbers.webhookToken, token)).limit(1);
+    if (n) await handleWebhookEvent(n.id, parseWebhook(payload));
   } catch (err) {
     console.error("[fake-evolution] falha ao entregar webhook", url, err);
   }

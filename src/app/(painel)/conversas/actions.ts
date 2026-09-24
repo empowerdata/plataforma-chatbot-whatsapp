@@ -2,89 +2,46 @@
 
 import { revalidatePath } from "next/cache";
 import { getAccountOrThrow } from "@/server/auth/guards";
-import { resolveConversation, setBotPausedForContact, setContactBlocked, setConversationCategory, setConversationResolved } from "@/server/services/conversations";
+import { renameInboxContact, saveInboxNotes, sendInboxMessage, setInboxBlocked, setInboxBot, setInboxCategory, setInboxResolved, type InboxScope } from "@/server/services/inbox";
 import { TenantNotConfigured } from "@/server/tenant";
+import type { ActionResult } from "@/components/inbox/types";
 
-type Result = { error: string | null };
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function fail(err: unknown): Result {
-  if (err instanceof TenantNotConfigured) return { error: "Conecte o Supabase da conta em Integrações para gerenciar as conversas." };
-  return { error: err instanceof Error ? err.message : String(err) };
-}
-
-function assertId(id: string): void {
-  if (typeof id !== "string" || !UUID_RE.test(id)) throw new Error("Conversa não encontrada.");
-}
-
-function revalidate(id: string): void {
-  revalidatePath("/conversas");
-  revalidatePath(`/conversas/${id}`);
-}
-
-/** Libera o bot: a conversa volta a "aberta", sem pedido de humano, e o contato deixa de estar pausado. */
-export async function resolveConversationAction(id: string): Promise<Result> {
+async function run(fn: (scope: InboxScope, author: string) => Promise<void>): Promise<ActionResult> {
   try {
-    assertId(id);
-    const { account } = await getAccountOrThrow();
-    await resolveConversation(account.id, id);
-    revalidate(id);
+    const { account, user } = await getAccountOrThrow();
+    await fn({ accountId: account.id, clientId: null, staff: true }, user.name);
+    revalidatePath("/conversas");
     return { error: null };
   } catch (err) {
-    return fail(err);
+    if (err instanceof TenantNotConfigured) return { error: "Configure o banco de dados das conversas em Integrações." };
+    return { error: err instanceof Error ? err.message : String(err) };
   }
 }
 
-/** Pausa o bot para o contato desta conversa por `hours` horas; `null` retoma o bot agora. */
-export async function pauseBotAction(id: string, hours: number | null): Promise<Result> {
-  try {
-    assertId(id);
-    if (hours !== null && (!Number.isFinite(hours) || hours <= 0 || hours > 24 * 30)) throw new Error("Escolha entre 1 hora e 30 dias.");
-    const { account } = await getAccountOrThrow();
-    await setBotPausedForContact(account.id, id, hours);
-    revalidate(id);
-    return { error: null };
-  } catch (err) {
-    return fail(err);
-  }
+export async function setResolvedAction(id: string, resolved: boolean) {
+  return run((s) => setInboxResolved(s, id, resolved === true));
 }
 
-/** Bloqueia (ou desbloqueia) o contato desta conversa. */
-export async function blockContactAction(id: string, blocked: boolean): Promise<Result> {
-  try {
-    assertId(id);
-    const { account } = await getAccountOrThrow();
-    await setContactBlocked(account.id, id, blocked === true);
-    revalidate(id);
-    return { error: null };
-  } catch (err) {
-    return fail(err);
-  }
+export async function setCategoryAction(id: string, category: string | null) {
+  return run((s) => setInboxCategory(s, id, typeof category === "string" ? category : null));
 }
 
-/** Corrige a categoria na mão; `null` limpa (volta para "sem categoria"). */
-export async function setCategoryAction(id: string, category: string | null): Promise<Result> {
-  try {
-    assertId(id);
-    const { account } = await getAccountOrThrow();
-    await setConversationCategory(account.id, id, category && category.trim() ? category.trim().slice(0, 40) : null);
-    revalidate(id);
-    return { error: null };
-  } catch (err) {
-    return fail(err);
-  }
+export async function setBotAction(id: string, enabled: boolean) {
+  return run((s) => setInboxBot(s, id, enabled === true));
 }
 
-/** Marca a conversa como finalizada (ou reabre) — gestão de CRM, independente do bot. */
-export async function setResolvedAction(id: string, resolved: boolean): Promise<Result> {
-  try {
-    assertId(id);
-    const { account } = await getAccountOrThrow();
-    await setConversationResolved(account.id, id, resolved);
-    revalidate(id);
-    return { error: null };
-  } catch (err) {
-    return fail(err);
-  }
+export async function sendMessageAction(id: string, text: string) {
+  return run((s, author) => sendInboxMessage(s, id, String(text ?? ""), author));
+}
+
+export async function saveNotesAction(id: string, notes: string) {
+  return run((s) => saveInboxNotes(s, id, String(notes ?? "")));
+}
+
+export async function renameContactAction(id: string, name: string) {
+  return run((s) => renameInboxContact(s, id, String(name ?? "")));
+}
+
+export async function setBlockedAction(id: string, blocked: boolean) {
+  return run((s) => setInboxBlocked(s, id, blocked === true));
 }

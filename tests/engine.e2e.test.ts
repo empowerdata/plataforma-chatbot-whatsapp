@@ -182,4 +182,101 @@ describe("engine ponta a ponta (Evolution simulada + IA simulada)", () => {
     const dupMsgs = (await store.listMessages(conversation.id, 500)).filter((m) => m.external_id === "DUP1");
     expect(dupMsgs).toHaveLength(1);
   });
+
+  // ------------------------------------------------------------ caixa de entrada
+
+  const staffScope = () => ({ accountId, clientId: null, staff: true });
+
+  const conversationOf = async (phone: string) => {
+    const contact = await store.upsertContact({ numberId, jid: `${phone}@s.whatsapp.net` });
+    const { conversation } = await store.getOrCreateConversation({ numberId, contactId: contact.id, timeoutHours: 12 });
+    return { contact, conversation };
+  };
+
+  it("caixa de entrada: responder pelo painel envia pelo WhatsApp, pausa o bot e o eco não vira 'pelo celular'", async () => {
+    const { sendInboxMessage, getInboxConversation } = await import("@/server/services/inbox");
+    const before = await countMarkers();
+    await fake.simulateIncoming(instanceName, { fromPhone: "5511977770020", text: "Oi, vocês abrem domingo?", pushName: "Bruno" });
+    await waitForReply(before);
+    const { conversation } = await conversationOf("5511977770020");
+
+    await sendInboxMessage(staffScope(), conversation.id, "Oi Bruno, aqui é a Maria da equipe!", "Maria");
+    expect(fake.outbox(instanceName, "5511977770020").some((m) => m.text === "Oi Bruno, aqui é a Maria da equipe!")).toBe(true);
+    await sleep(300); // eco fromMe da Evolution
+
+    const human = (await store.listMessages(conversation.id, 500)).filter((m) => m.sender === "human");
+    expect(human).toHaveLength(1);
+    expect(human[0].meta).toMatchObject({ via: "painel", author: "Maria" });
+
+    const detail = await getInboxConversation(staffScope(), conversation.id);
+    expect(detail?.bot).toMatchObject({ kind: "paused", reason: "human_reply" });
+    const humanItem = detail?.thread.find((i) => i.kind === "message" && i.sender === "human");
+    expect(humanItem).toMatchObject({ author: "Maria" });
+  });
+
+  it("interruptor por conversa: desligar silencia o bot; religar faz voltar a responder na hora", async () => {
+    const { setInboxBot, getInboxConversation } = await import("@/server/services/inbox");
+    let before = await countMarkers();
+    await fake.simulateIncoming(instanceName, { fromPhone: "5511977770030", text: "Oi", pushName: "Carla" });
+    before = await waitForReply(before);
+    const { conversation } = await conversationOf("5511977770030");
+
+    await setInboxBot(staffScope(), conversation.id, false);
+    expect((await getInboxConversation(staffScope(), conversation.id))?.bot.kind).toBe("off");
+    await fake.simulateIncoming(instanceName, { fromPhone: "5511977770030", text: "Vocês entregam no centro?", pushName: "Carla" });
+    await expectNoReply(before, 1500);
+
+    await setInboxBot(staffScope(), conversation.id, true);
+    expect((await getInboxConversation(staffScope(), conversation.id))?.bot.kind).toBe("active");
+    await fake.simulateIncoming(instanceName, { fromPhone: "5511977770030", text: "E qual o tempo de entrega?", pushName: "Carla" });
+    await waitForReply(before);
+  });
+
+  it("religar o bot também tira a pausa do pedido de atendente e o 'precisa de você'", async () => {
+    const { setInboxBot, listInbox } = await import("@/server/services/inbox");
+    const { conversation } = await conversationOf("5511977770009"); // a Célia, do teste de handoff
+    const atencao = await listInbox(staffScope(), { view: "atencao", category: null, numberId: null, search: "" });
+    expect(atencao.items.map((i) => i.id)).toContain(conversation.id);
+
+    await setInboxBot(staffScope(), conversation.id, true);
+    const after = await store.getConversation(conversation.id);
+    expect(after?.needs_human).toBe(false);
+    const contact = await store.getContact(conversation.contact_id);
+    expect(contact?.bot_paused_until).toBeNull();
+  });
+
+  it("busca por nome, telefone ou mensagem", async () => {
+    const { listInbox } = await import("@/server/services/inbox");
+    const all = { view: "todas" as const, category: null, numberId: null };
+    const byName = await listInbox(staffScope(), { ...all, search: "brun" });
+    expect(byName.items.map((i) => i.title)).toEqual(["Bruno"]);
+    const byPhone = await listInbox(staffScope(), { ...all, search: "77770030" });
+    expect(byPhone.items.map((i) => i.title)).toEqual(["Carla"]);
+    const byText = await listInbox(staffScope(), { ...all, search: "Maria da equipe" });
+    expect(byText.items.map((i) => i.title)).toEqual(["Bruno"]);
+  });
+
+  it("escopo do cliente final: só enxerga e mexe nas conversas dos números dele", async () => {
+    const { getDb, schema } = await import("@/server/db");
+    const { eq } = await import("drizzle-orm");
+    const { listInbox, getInboxConversation, setInboxResolved } = await import("@/server/services/inbox");
+    const db = await getDb();
+    const [dono] = await db.insert(schema.clients).values({ accountId, name: "Pizzaria do número" }).returning();
+    const [outro] = await db.insert(schema.clients).values({ accountId, name: "Outro negócio" }).returning();
+    const { conversation } = await conversationOf("5511977770020");
+    const filters = { view: "todas" as const, category: null, numberId: null, search: "" };
+
+    await db.update(schema.numbers).set({ clientId: dono.id }).where(eq(schema.numbers.id, numberId));
+    try {
+      const mine = await listInbox({ accountId, clientId: dono.id, staff: false }, filters);
+      expect(mine.items.map((i) => i.id)).toContain(conversation.id);
+
+      const other = { accountId, clientId: outro.id, staff: false };
+      expect((await listInbox(other, filters)).items).toHaveLength(0);
+      expect(await getInboxConversation(other, conversation.id)).toBeNull();
+      await expect(setInboxResolved(other, conversation.id, true)).rejects.toThrow("Conversa não encontrada.");
+    } finally {
+      await db.update(schema.numbers).set({ clientId: null }).where(eq(schema.numbers.id, numberId));
+    }
+  });
 });

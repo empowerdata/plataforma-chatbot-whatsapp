@@ -172,4 +172,31 @@ describe("TenantStore no PGlite (mesmo SQL do Supabase)", () => {
     await store.purgeNumber(NUMBER);
     expect(await store.contactsCount([NUMBER])).toBe(0);
   });
+
+  it("caixa de entrada: últimas mensagens, interruptor do bot, notas e finalizar tirando o 'precisa de você'", async () => {
+    const INBOX_NUMBER = "55555555-5555-4555-8555-555555555555";
+    const c = await store.upsertContact({ numberId: INBOX_NUMBER, jid: "5511777@s.whatsapp.net", phone: "5511777" });
+    expect(c.bot_disabled).toBe(false);
+    const { conversation } = await store.getOrCreateConversation({ numberId: INBOX_NUMBER, contactId: c.id, timeoutHours: 12 });
+    for (let i = 1; i <= 5; i++) {
+      await store.insertMessage({ numberId: INBOX_NUMBER, conversationId: conversation.id, contactId: c.id, direction: "in", sender: "contact", text: `m${i}`, createdAt: new Date(Date.UTC(2026, 8, 24, 12, i)) });
+    }
+    // As 3 mais recentes, em ordem cronológica (antes voltavam as 3 primeiras).
+    expect((await store.listMessages(conversation.id, 3)).map((m) => m.text)).toEqual(["m3", "m4", "m5"]);
+
+    await store.setContactBotDisabled(c.id, true);
+    await store.pauseContactBot(c.id, new Date(Date.now() + 3600_000));
+    await store.setContactNotes(c.id, "Cliente fiel, prefere entrega à noite");
+    let reloaded = await store.getContact(c.id);
+    expect(reloaded).toMatchObject({ bot_disabled: true, notes: "Cliente fiel, prefere entrega à noite" });
+    await store.resumeContactBot(c.id);
+    reloaded = await store.getContact(c.id);
+    expect(reloaded).toMatchObject({ bot_disabled: false, bot_paused_until: null });
+
+    await store.setConversationStatus(conversation.id, "human", true, "pediu atendente");
+    expect(await store.countConversations({ numberIds: [INBOX_NUMBER], resolved: false, needsHuman: true })).toBe(1);
+    await store.setConversationResolved(conversation.id, true);
+    expect(await store.countConversations({ numberIds: [INBOX_NUMBER], resolved: false, needsHuman: true })).toBe(0);
+    expect((await store.getConversation(conversation.id))?.needs_human).toBe(false);
+  });
 });

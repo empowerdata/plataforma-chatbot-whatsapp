@@ -53,7 +53,7 @@ export function buildSystemPrompt(input: PromptInput): string {
       `## Base de conhecimento (trechos relevantes para esta conversa)\nUse apenas o que está aqui para responder sobre produtos, preços, serviços e políticas. Se a informação não estiver aqui, não invente.\n\n${input.knowledge.map((k, i) => `[${i + 1}] ${k}`).join("\n\n")}`,
     );
   } else {
-    sections.push(`## Base de conhecimento\nNenhum trecho relevante foi encontrado para esta pergunta. Se ela for sobre preços, produtos ou políticas específicas, diga que vai confirmar com a equipe${config.actions.handoff.enabled ? " e use a ferramenta de atendimento humano se o cliente precisar" : ""}.`);
+    sections.push(`## Base de conhecimento\nNenhum trecho relevante foi encontrado para esta pergunta. Se ela for sobre preços, produtos ou políticas específicas, diga que vai confirmar essa informação com a equipe e continue ajudando no que puder — não transfira para um atendente só por não saber a resposta.`);
   }
 
   const rules = [...config.rules.map(v), ...defaultRules(config)];
@@ -61,7 +61,10 @@ export function buildSystemPrompt(input: PromptInput): string {
 
   if (input.tools.length) {
     const t: string[] = [];
-    if (input.tools.includes("chamar_atendente")) t.push("- chamar_atendente: quando o cliente pedir para falar com uma pessoa, quando estiver irritado, quando você não conseguir resolver, ou quando concluir um pedido/agendamento que a equipe precisa confirmar.");
+    if (input.tools.includes("chamar_atendente"))
+      t.push(
+        "- chamar_atendente: SOMENTE quando (1) o cliente pedir claramente para falar com uma pessoa, (2) você concluir um pedido ou agendamento que a equipe precisa confirmar, ou (3) o cliente continuar insatisfeito mesmo depois de você tentar ajudar. Não use só porque não sabe uma resposta ou porque a pergunta é difícil. Depois de chamar, você fica em silêncio nesta conversa até a equipe liberar.",
+      );
     if (input.tools.includes("enviar_cardapio")) t.push(`- enviar_cardapio: quando o cliente pedir o ${config.actions.sendMenu.label || "cardápio"} ou quiser ver as opções.`);
     if (input.tools.includes("enviar_localizacao")) t.push("- enviar_localizacao: quando o cliente perguntar onde fica ou como chegar.");
     if (input.tools.includes("categorizar_conversa")) t.push("- categorizar_conversa: assim que der para saber do que se trata a conversa, marque a categoria dela (o cliente nunca vê isso). Chame de novo se o assunto mudar bastante.");

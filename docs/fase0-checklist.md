@@ -8,13 +8,19 @@ Objetivo: provar o caminho real de ponta a ponta e medir capacidade. Tudo abaixo
       instalador gera um endereço via sslip.io se faltar um).
 - [ ] Chip com WhatsApp ativo num celular (número de teste). Ideal: um segundo celular para fazer o papel do cliente.
 - [ ] Chave OpenAI com créditos (pode ser a de dev: `DEV_OPENAI_API_KEY`).
-- [ ] Um projeto Supabase de teste (string de conexão Session pooler).
+- [ ] (Opcional) Um projeto Supabase de teste, só para validar o caminho "avançado".
 
 ## Subir a Evolution real
 
-- [ ] `curl -fsSL .../infra/provision.sh | bash` conforme `docs/instalar-vps.md`; responder às perguntas.
-- [ ] O painel abre em `https://SEU-DOMINIO/login` ao final da instalação.
-- [ ] Login com o e-mail/senha dados na instalação cai direto no painel (não numa tela de "Admin → Contas" vazia).
+Primeira rodada: 2026-09-24, Hostinger KVM1 (Ubuntu 24.04 LTS). Achou e
+corrigiu três bugs que bloqueavam toda instalação (repositório privado,
+`REPO_URL` placeholder, build exigindo segredos) — ver
+`docs/visao-e-decisoes.md`.
+
+- [x] `curl -fsSL .../infra/provision.sh | bash` conforme `docs/instalar-vps.md`; responder às perguntas.
+- [x] O painel abre em `https://SEU-DOMINIO/login` ao final da instalação.
+- [x] Login com o e-mail/senha dados na instalação cai direto no painel (não numa tela de "Admin → Contas" vazia).
+- [ ] Depois do `git pull` com o banco `dados`: `docker compose -f infra/docker-compose.yml ps` mostra `dados` como healthy e Integrações → Banco de dados mostra "Ativo" (sem Supabase).
 - [ ] Em Admin → Servidores, o servidor Evolution já aparece cadastrado sozinho (cadastro automático via `EVOLUTION_BUNDLED_*`), sem precisar clicar em "Adicionar". "Testar" fica verde.
 
 ## Validar a integração (itens marcados "validar" no código)
@@ -25,18 +31,21 @@ Objetivo: provar o caminho real de ponta a ponta e medir capacidade. Tudo abaixo
 - [ ] Código de pareamento funciona ao criar o número com telefone.
 - [ ] Mensagem de texto recebida → resposta do bot em < 10 s, com "digitando" visível no celular.
 - [ ] Áudio → transcrito e respondido.
-- [ ] Imagem com legenda → respondido (descrição no histórico).
-- [ ] Dono responde pelo celular → painel mostra "com humano" e o bot fica em silêncio.
-- [ ] "Quero falar com atendente" → aviso chega no telefone configurado.
+- [ ] Imagem → o bot responde sobre o conteúdo da foto (visão), não só "recebi uma imagem".
+- [ ] Dono responde pelo celular → a conversa mostra "Bot pausado… até HH:MM" e o bot fica em silêncio; "Reativar agora" religa na hora.
+- [ ] Resposta pela caixa de entrada chega no celular do cliente e aparece com o nome de quem enviou (o eco não vira "pelo celular").
+- [ ] Interruptor "Bot" desligado numa conversa → o bot não responde mais aquele contato até religar.
+- [ ] "Quero falar com atendente" → aviso chega no telefone configurado e a conversa entra em "Precisa de você".
+- [ ] Horários na tela batem com o horário de Brasília (o servidor roda em UTC).
 - [ ] Desconectar pelo painel → status "Desconectado"; reconectar gera QR novo.
 - [ ] Excluir número remove a instância na Evolution (`fetchInstances` não lista mais).
 - [ ] Evolution reiniciada (`docker compose restart evolution`) → instância volta sozinha sem novo QR.
 
-## Supabase real
+## Banco das conversas
 
-- [ ] Colar a string em Integrações: "Conectado", tabelas v1 instaladas (conferir no SQL Editor: schema `chatbot`).
-- [ ] Conversas aparecem em **Conversas** lendo do Supabase.
+- [ ] Conversas aparecem em **Conversas** lendo do banco do servidor (serviço `dados`), sem configurar nada.
 - [ ] Base de conhecimento com embeddings (item "pronto (N trechos)" sem aviso de "sem embeddings").
+- [ ] (Opcional) Supabase: colar a string em Integrações → Banco de dados → Avançado: "Conectado", tabelas instaladas (schema `chatbot` no SQL Editor).
 
 ## Medições
 

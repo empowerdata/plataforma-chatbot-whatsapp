@@ -2,6 +2,7 @@ import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 import { env } from "../env";
+import { ensureWritableDir } from "../pglite-dir";
 
 /**
  * Camada mínima de execução SQL, com duas implementações:
@@ -21,6 +22,7 @@ export async function createPgliteExecutor(dataDir: string): Promise<SqlExecutor
   const { PGlite } = await import("@electric-sql/pglite");
   const { vector } = await import("@electric-sql/pglite-pgvector");
   fs.mkdirSync(dataDir, { recursive: true });
+  ensureWritableDir(dataDir);
   const pg = await PGlite.create({ dataDir, extensions: { vector } });
   return {
     kind: "pglite",

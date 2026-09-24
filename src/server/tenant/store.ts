@@ -15,8 +15,21 @@ export type Contact = {
   push_name: string | null;
   is_blocked: boolean;
   bot_paused_until: Date | null;
+  /** Bot desligado à mão nesta conversa, sem prazo para voltar. */
+  bot_disabled: boolean;
+  /** Notas internas da equipe sobre o contato. */
+  notes: string | null;
   first_seen_at: Date;
   last_seen_at: Date;
+};
+
+export type ConversationListRow = Conversation & {
+  contact_phone: string | null;
+  contact_name: string | null;
+  contact_push_name: string | null;
+  contact_is_blocked: boolean;
+  contact_bot_disabled: boolean;
+  contact_bot_paused_until: Date | null;
 };
 
 export type Conversation = {
@@ -133,8 +146,21 @@ export class TenantStore {
     await this.db.query(`update chatbot.contacts set is_blocked = $2 where id = $1`, [contactId, blocked]);
   }
 
-  async setContactName(contactId: string, name: string): Promise<void> {
+  async setContactName(contactId: string, name: string | null): Promise<void> {
     await this.db.query(`update chatbot.contacts set name = $2 where id = $1`, [contactId, name]);
+  }
+
+  async setContactBotDisabled(contactId: string, disabled: boolean): Promise<void> {
+    await this.db.query(`update chatbot.contacts set bot_disabled = $2 where id = $1`, [contactId, disabled]);
+  }
+
+  /** Religa o bot para o contato: tira o desligamento manual e qualquer pausa automática. */
+  async resumeContactBot(contactId: string): Promise<void> {
+    await this.db.query(`update chatbot.contacts set bot_disabled = false, bot_paused_until = null where id = $1`, [contactId]);
+  }
+
+  async setContactNotes(contactId: string, notes: string | null): Promise<void> {
+    await this.db.query(`update chatbot.contacts set notes = $2 where id = $1`, [contactId, notes]);
   }
 
   // ------------------------------------------------------------- conversas
@@ -180,9 +206,15 @@ export class TenantStore {
     await this.db.query(`update chatbot.conversations set category = $2 where id = $1`, [id, category]);
   }
 
-  /** Marca (ou desmarca) a conversa como finalizada — gestão de CRM, à mão. */
+  /** Marca (ou desmarca) a conversa como finalizada — gestão de CRM, à mão. Finalizar também tira o "precisa de você". */
   async setConversationResolved(id: string, resolved: boolean): Promise<void> {
-    await this.db.query(`update chatbot.conversations set resolved_at = case when $2 then now() else null end where id = $1`, [id, resolved]);
+    await this.db.query(
+      `update chatbot.conversations
+         set resolved_at = case when $2 then now() else null end,
+             needs_human = case when $2 then false else needs_human end
+       where id = $1`,
+      [id, resolved],
+    );
   }
 
   /** Categorias em uso entre os números informados, para alimentar o filtro da lista. */
@@ -195,7 +227,7 @@ export class TenantStore {
     return rows.map((r) => r.category);
   }
 
-  async listConversations(input: { numberId?: string; numberIds?: string[]; needsHuman?: boolean; category?: string; resolved?: boolean; limit?: number; offset?: number }): Promise<(Conversation & { contact_phone: string | null; contact_name: string | null; contact_push_name: string | null })[]> {
+  async listConversations(input: { numberId?: string; numberIds?: string[]; needsHuman?: boolean; category?: string; resolved?: boolean; search?: string; limit?: number; offset?: number }): Promise<ConversationListRow[]> {
     const where: string[] = [];
     const params: unknown[] = [];
     if (input.numberId) {
@@ -211,12 +243,25 @@ export class TenantStore {
       where.push(`c.category = $${params.length}`);
     }
     if (input.resolved !== undefined) where.push(input.resolved ? `c.resolved_at is not null` : `c.resolved_at is null`);
+    const search = input.search?.trim();
+    if (search) {
+      params.push(`%${search.replace(/[\\%_]/g, (m) => "\\" + m)}%`);
+      const textParam = `$${params.length}`;
+      const conds = [`ct.name ilike ${textParam}`, `ct.push_name ilike ${textParam}`, `c.last_message_preview ilike ${textParam}`, `c.category ilike ${textParam}`];
+      const digits = search.replace(/\D/g, "");
+      if (digits.length >= 3) {
+        params.push(`%${digits}%`);
+        conds.push(`ct.phone like $${params.length}`);
+      }
+      where.push(`(${conds.join(" or ")})`);
+    }
     params.push(input.limit ?? 50);
     const limitIdx = params.length;
     params.push(input.offset ?? 0);
     const offsetIdx = params.length;
     return this.db.query(
-      `select c.*, ct.phone as contact_phone, ct.name as contact_name, ct.push_name as contact_push_name
+      `select c.*, ct.phone as contact_phone, ct.name as contact_name, ct.push_name as contact_push_name,
+              ct.is_blocked as contact_is_blocked, ct.bot_disabled as contact_bot_disabled, ct.bot_paused_until as contact_bot_paused_until
        from chatbot.conversations c
        join chatbot.contacts ct on ct.id = c.contact_id
        ${where.length ? "where " + where.join(" and ") : ""}
@@ -227,11 +272,12 @@ export class TenantStore {
   }
 
   /** Contagem simples (aberto/finalizado, opcionalmente só quem teve atividade recente). */
-  async countConversations(input: { numberIds: string[]; resolved?: boolean; activeSince?: Date }): Promise<number> {
+  async countConversations(input: { numberIds: string[]; resolved?: boolean; needsHuman?: boolean; activeSince?: Date }): Promise<number> {
     if (!input.numberIds.length) return 0;
     const where: string[] = [`number_id = any($1::uuid[])`];
     const params: unknown[] = [input.numberIds];
     if (input.resolved !== undefined) where.push(input.resolved ? `resolved_at is not null` : `resolved_at is null`);
+    if (input.needsHuman) where.push(`needs_human = true`);
     if (input.activeSince) {
       params.push(input.activeSince);
       where.push(`last_message_at >= $${params.length}`);
@@ -310,9 +356,13 @@ export class TenantStore {
     return row;
   }
 
+  /** As últimas `limit` mensagens da conversa, em ordem cronológica. */
   async listMessages(conversationId: string, limit = 200): Promise<MessageRow[]> {
     return this.db.query<MessageRow>(
-      `select * from chatbot.messages where conversation_id = $1 order by created_at asc, id asc limit $2`,
+      `select * from (
+         select * from chatbot.messages where conversation_id = $1
+         order by created_at desc, id desc limit $2
+       ) t order by created_at asc, id asc`,
       [conversationId, limit],
     );
   }

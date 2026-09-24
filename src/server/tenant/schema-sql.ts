@@ -146,3 +146,18 @@ insert into chatbot.meta (key, value)
 values ('schema_version', '3')
 on conflict (key) do update set value = excluded.value, updated_at = now();
 `;
+
+/**
+ * v4: inbox. `bot_disabled` é o interruptor explícito "bot nesta conversa"
+ * (desligado por uma pessoa, sem prazo — diferente de `bot_paused_until`,
+ * que é a pausa automática com hora para voltar). `notes` são as notas
+ * internas sobre o contato, que o cliente nunca vê.
+ */
+export const TENANT_SCHEMA_V4 = `
+alter table chatbot.contacts add column if not exists bot_disabled boolean not null default false;
+alter table chatbot.contacts add column if not exists notes text;
+
+insert into chatbot.meta (key, value)
+values ('schema_version', '4')
+on conflict (key) do update set value = excluded.value, updated_at = now();
+`;

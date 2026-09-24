@@ -1,46 +1,52 @@
 # Arquitetura
 
+Para o modelo de negócio e o porquê de cada decisão, ver `docs/visao-e-decisoes.md`.
+
 ## Em uma frase
 
-Um painel (Next.js) onde alunos cadastram números de WhatsApp e bots; a Evolution API é **nossa** (hospedada), o banco de conversas e a chave de IA são **do aluno** (Supabase + OpenAI).
+Um painel (Next.js) que o próprio aluno instala no servidor dele: a Evolution API (WhatsApp) vem junto e fica privada, as conversas ficam no banco de dados do próprio servidor (ou, opcionalmente, num Supabase do aluno) e a IA usa a chave OpenAI do aluno.
 
 ## Peças
 
 ```
-┌──────────────┐  webhook   ┌───────────────────────────────┐   SQL    ┌──────────────────┐
-│ Evolution API│ ─────────▶ │ Painel + runtime (Next.js)     │ ───────▶ │ Supabase do aluno│
-│ (nossa, VPS) │ ◀───────── │  /api/webhooks/evolution/:tok  │          │ contatos, msgs,  │
-│ 1 instância  │  sendText  │  engine (debounce, RAG, tools) │          │ embeddings, stats│
-│ por número   │            │  monitor (a cada 60 s)         │          └──────────────────┘
-└──────────────┘            └───────────────┬───────────────┘
+┌──────────────┐  webhook   ┌───────────────────────────────┐   SQL    ┌─────────────────────────┐
+│ Evolution API│ ─────────▶ │ Painel + runtime (Next.js)     │ ───────▶ │ Banco das conversas     │
+│ (mesmo       │ ◀───────── │  /api/webhooks/evolution/:tok  │          │ servidor do aluno       │
+│  servidor,   │  sendText  │  engine (debounce, RAG, tools) │          │ (ou Supabase dele)      │
+│  privada)    │            │  caixa de entrada · monitor    │          │ contatos, msgs, vetores │
+└──────────────┘            └───────────────┬───────────────┘          └─────────────────────────┘
                                             │ Drizzle                 ┌──────────────────┐
                                             ▼                         │ OpenAI do aluno  │
                                    ┌──────────────────┐   AI SDK      │ chat, embeddings,│
-                                   │ Postgres nosso   │ ────────────▶ │ transcrição      │
-                                   │ (plano de        │               └──────────────────┘
-                                   │  controle)       │
+                                   │ Postgres do      │ ────────────▶ │ transcrição,     │
+                                   │ painel (plano de │               │ visão            │
+                                   │ controle)        │               └──────────────────┘
                                    └──────────────────┘
 ```
 
-### Plano de controle (nosso Postgres, `src/server/db/schema.ts`)
+### Plano de controle (Postgres do painel, `src/server/db/schema.ts`)
 
-`accounts`, `users`, `sessions`, `password_tokens`, `integrations` (segredos criptografados), `evolution_nodes`, `clients`, `numbers`, `bots`, `knowledge_items` (metadados), `events`.
+`accounts`, `users` (papéis `super_admin`, `member`, `client`), `sessions`, `password_tokens`, `integrations` (segredos criptografados), `evolution_nodes`, `clients`, `numbers`, `bots`, `knowledge_items` (metadados), `events`.
 
 - Em dev: PGlite (Postgres em WASM) em `./.data/control`. Em produção: `DATABASE_URL`.
 - Migrations: `drizzle/` (geradas por `npx drizzle-kit generate`), aplicadas automaticamente na subida.
 
-### Plano de dados (Supabase do aluno, `src/server/tenant/`)
+### Plano de dados (banco das conversas, `src/server/tenant/`)
 
-Schema `chatbot`: `contacts`, `conversations`, `messages`, `kb_chunks` (pgvector 1536), `daily_stats`, `meta` (versão do schema).
+Schema `chatbot`: `contacts` (com `bot_disabled` e `notes`), `conversations` (com `category` e `resolved_at`), `messages`, `kb_chunks` (pgvector 1536), `daily_stats`, `meta` (versão do schema).
 
-- O aluno cola a **string de conexão** (Session pooler). A plataforma testa, instala/atualiza as tabelas (`installSchema`) e guarda a string criptografada.
-- Em dev sem Supabase: PGlite por conta em `./.data/tenants/<accountId>` com o **mesmo SQL**, então o que passa nos testes passa no Supabase.
-- `TenantStore` é a única porta de entrada para esse banco.
+Onde fica, nesta ordem (`resolveTarget` em `registry.ts`):
+
+1. **Supabase do aluno**, se ele conectou um em Integrações (opcional, "avançado").
+2. **Postgres do próprio servidor** (`DATA_DATABASE_URL`) — o padrão de toda instalação. No VPS é o serviço `dados` do `infra/docker-compose.yml` (imagem `pgvector/pgvector:pg16`, separado do Postgres da Evolution de propósito); no Render é o mesmo banco do painel (schema `chatbot` separado).
+3. **PGlite por conta** em `./.data/tenants/<accountId>` (só em dev), com o **mesmo SQL** — o que passa nos testes passa em produção.
+
+Toda abertura roda `installSchema` (idempotente): uma atualização do painel nunca deixa o banco de conversas numa versão antiga. `TenantStore` é a única porta de entrada para esse banco.
 
 ### Evolution API (`src/server/evolution/`)
 
-- `EvolutionClient` é a interface; `HttpEvolutionClient` fala com o servidor real (v2) e `FakeEvolutionClient` simula tudo em dev (QR, webhooks, envio).
-- `evolution_nodes` lista os servidores; `pickNode()` escolhe o com mais vaga. Servidores `fake` só entram quando não há real.
+- `EvolutionClient` é a interface; `HttpEvolutionClient` fala com o servidor real (v2) e `FakeEvolutionClient` simula tudo em dev (QR, webhooks, envio). A simulada entrega os webhooks direto no motor, no mesmo processo — funciona em qualquer porta.
+- Numa instalação própria, o servidor Evolution que vem junto é cadastrado sozinho no primeiro boot (`EVOLUTION_BUNDLED_*`).
 - Cada número = uma instância `<slug>-<aleatório>` com webhook `APP_URL/api/webhooks/evolution/<token>`.
 - A Evolution é configurada para **não persistir mensagens**, só a sessão (ver `infra/evolution.env.example`).
 
@@ -49,36 +55,49 @@ Schema `chatbot`: `contacts`, `conversations`, `messages`, `kb_chunks` (pgvector
 Fluxo de `messages.upsert`:
 
 1. `inbound.ts` valida, deduplica por `external_id`, ignora grupos.
-2. `fromMe` com id desconhecido = **humano respondeu pelo celular** → salva como `human`, pausa o bot para o contato por N horas, conversa vira `human`.
-3. Mensagem do cliente → `upsertContact`, `getOrCreateConversation` (nova conversa após 12 h de silêncio), transcreve áudio se houver IA, salva, contabiliza.
-4. Se o bot deve responder → `scheduler.schedule(numero:contato, debounce)`; várias mensagens seguidas viram uma rodada só.
-5. `respondToContact`: pega o lote pendente, faz RAG (`embed` + `<=>` no pgvector; sem chave OpenAI cai para busca textual), monta o prompt (`context.ts`), roda `runLlmTurn` (AI SDK com tools `chamar_atendente`, `enviar_cardapio`, `enviar_localizacao`, `categorizar_conversa`; sem chave usa o backend simulado, que não categoriza), divide em bolhas (`reply.ts`), envia com "digitando", salva mensagens e estatísticas.
-
-O bot categoriza a conversa sozinho (campo `chatbot.conversations.category`, schema v2), escolhendo entre a lista configurável por bot (`config.categorization.options`, até 12). Dá para corrigir na mão na tela da conversa, filtrar a lista por categoria, e testar no Playground do Studio sem precisar de WhatsApp nenhum.
+2. `fromMe` com id desconhecido = **alguém respondeu pelo celular** → salva como `human`, pausa o bot para o contato por N horas, conversa vira `human`. Ids que o próprio painel enviou (bot ou resposta pela caixa de entrada) ficam em `sent-cache.ts` e são ignorados.
+3. Mensagem do cliente → `upsertContact`, `getOrCreateConversation` (nova conversa após 12 h de silêncio), transcreve áudio e guarda a imagem num cache curto (`media-cache.ts`, para a visão) se houver IA, salva, contabiliza.
+4. O bot responde só se: número com bot ligado, bot ativo, contato não bloqueado, **não desligado à mão** (`bot_disabled`) e **sem pausa vigente** (`bot_paused_until`). Aí `scheduler.schedule(numero:contato, debounce)`; várias mensagens seguidas viram uma rodada só.
+5. `respondToContact`: pega o lote pendente, faz RAG (`embed` + `<=>` no pgvector; sem chave OpenAI cai para busca textual), monta o prompt (`context.ts`), roda `runLlmTurn` (AI SDK com tools `chamar_atendente`, `enviar_cardapio`, `enviar_localizacao`, `categorizar_conversa`; sem chave usa o backend simulado), divide em bolhas (`reply.ts`), envia com "digitando", salva mensagens e estatísticas.
 6. Fora do horário: manda a mensagem de fora de horário uma vez por conversa e continua respondendo.
 
+`chamar_atendente` só deve ser usada quando o cliente pede uma pessoa, ao concluir um pedido/agendamento que a equipe confirma, ou se o cliente segue insatisfeito — nunca só por o bot não saber uma resposta (ver `context.ts`). Ao chamar, a conversa fica "precisa de você" e o bot pausa pelo tempo configurado.
+
 Runtime hoje é **em processo** (memória). Para várias réplicas, trocar `MemoryScheduler` por BullMQ/Redis mantendo a interface `Scheduler`.
+
+### Caixa de entrada (`src/server/services/inbox.ts` + `src/components/inbox/`)
+
+A mesma tela para a equipe do aluno (`/conversas`) e para o cliente final (`/portal/conversas`): lista com busca e abas (em aberto, precisa de você, finalizadas, todas), conversa com resposta pelo painel, e ficha do contato com notas internas. Atualiza sozinha a cada 5 s.
+
+- O **escopo** (`InboxScope`) decide o que cada um alcança: a equipe vê todos os números da conta; o cliente final só os números do `client_id` dele. Toda leitura e toda ação passam por `scopeNumbers`, então um cliente não toca conversa de outro nem adivinhando um id.
+- O **estado do bot** em cada conversa é calculado em um lugar só (`computeBotState`): ativo, pausado (com o motivo e a hora de voltar), desligado à mão, contato bloqueado, bot desligado no número, sem bot. A tela explica o porquê e oferece a ação certa ("Reativar agora", "Ligar o bot"…).
+- **Responder pelo painel** envia pela Evolution, marca o id em `sent-cache` (o eco não vira "pelo celular") e pausa o bot pelo mesmo tempo de uma resposta pelo celular. O interruptor liga na hora.
 
 ### Monitor (`src/server/monitor.ts`)
 
 A cada 60 s (iniciado por `instrumentation.ts`) confere a saúde dos servidores e o estado de cada instância, corrige o status no banco e registra eventos. Também exposto em `GET /api/internal/monitor` para cron externo.
 
-O mesmo processo, no máximo uma vez por dia, apaga conversas e mensagens sem atividade há mais de `CONVERSATION_RETENTION_DAYS` (padrão 30) no Supabase de cada conta — mensagens caem em cascata junto com a conversa. As estatísticas agregadas (`chatbot.daily_stats`) não são apagadas, então o gráfico da Visão Geral continua mostrando os últimos 30 dias mesmo sem o texto das conversas.
+O mesmo processo, no máximo uma vez por dia, apaga conversas e mensagens sem atividade há mais de `CONVERSATION_RETENTION_DAYS` (padrão 30) no banco de conversas de cada conta — mensagens caem em cascata junto com a conversa. As estatísticas agregadas (`chatbot.daily_stats`) não são apagadas.
 
 ### Segurança
 
 - Segredos dos alunos: AES-256-GCM com chave derivada de `APP_SECRET` (`crypto.ts`). Nunca vão ao navegador.
 - Sessões próprias (cookie httpOnly + tabela `sessions`), sem serviço externo de auth.
 - Webhook autenticado por token aleatório na URL; rotas internas por `INTERNAL_TOKEN`.
-- Todo serviço filtra por `accountId` vindo do guard, nunca do cliente.
+- Todo serviço filtra por `accountId` (e, no portal, por `clientId`) vindo do guard, nunca do navegador. Login `client` é barrado em `requireAccount`/`getAccountOrThrow`.
+
+### Horários
+
+O servidor roda em UTC; toda data exibida passa pelos formatadores de `src/lib/utils.ts`, com o fuso `America/Sao_Paulo` explícito.
 
 ## Decisões (e por quê)
 
 | Decisão | Motivo |
 |---|---|
-| Evolution hospedada por nós, não pelo aluno | Fricção mínima para o aluno e um só lugar para atualizar quando o WhatsApp muda o protocolo. Vira receita por número. |
-| Conversas no Supabase do aluno | Promessa de privacidade (não temos as conversas) e custo zero de armazenamento para a plataforma. |
-| String de conexão em vez de URL + service_role | Um único caminho SQL para dev (PGlite) e produção, e instalação/atualização de tabelas automática, sem o aluno colar SQL. |
-| Painel e runtime no mesmo processo | Simplicidade operacional no MVP (um container). A engine não importa nada do Next e pode virar serviço separado depois. |
-| Auth própria em vez de Supabase Auth | O produto não depende de um projeto Supabase nosso; roda em qualquer Postgres. |
+| Tudo na instalação do aluno (painel, Evolution, bancos) | A Daxus não opera infraestrutura de ninguém. Ver `docs/visao-e-decisoes.md`. |
+| Conversas no banco do próprio servidor, Supabase opcional | Zero configuração para quem não é técnico, e as conversas continuam na infraestrutura do aluno. |
+| Banco `dados` separado do Postgres da Evolution (VPS) | Precisa de pgvector; trocar a imagem do banco que já guarda a sessão do WhatsApp arriscaria instalações existentes. |
+| String de conexão (quando usa Supabase) em vez de URL + service_role | Um único caminho SQL para dev (PGlite) e produção, e instalação/atualização de tabelas automática. |
+| Painel e runtime no mesmo processo | Simplicidade operacional (um container). A engine não importa nada do Next e pode virar serviço separado depois. |
+| Auth própria | Roda em qualquer Postgres, sem serviço externo. |
 | AI SDK (Vercel) | Trocar/adicionar provedor (Anthropic, Google) vira configuração. |

@@ -25,9 +25,10 @@ Existem três camadas de pessoas, e é fácil confundi-las:
 1. **O aluno da Daxus** — compra o produto, instala no próprio servidor,
    é o único usuário do painel. É "dono" da própria instalação inteira.
 2. **O cliente do aluno** (a pizzaria, o salão) — contrata o aluno para ter
-   um chatbot no WhatsApp dele. Não acessa o painel, não tem login. Hoje só
-   interage via WhatsApp; um portal para esse cliente ver os próprios dados é
-   ideia de fase futura (ver "O que ainda não existe").
+   um chatbot no WhatsApp dele. Não acessa o painel do aluno; se o aluno
+   quiser, ganha um login próprio no **portal** (`/portal`), onde atende as
+   próprias conversas na mesma caixa de entrada da equipe, só com os dados
+   dele.
 3. **O cliente final** (quem manda mensagem no WhatsApp) — a pessoa comprando
    uma pizza, marcando um horário. Conversa só com o bot (ou com o dono do
    negócio, quando ele responde pelo próprio celular).
@@ -90,7 +91,7 @@ de vários recursos cobrados separadamente.
 |---|---|
 | Código do painel, engine de atendimento, o produto em si | Daxus (mantém e evolui) |
 | Servidor (VPS), custo de hospedagem, uptime da instalação | Aluno |
-| Banco de dados das conversas (Supabase) | Aluno (conta própria, gratuita para o volume inicial) |
+| Banco de dados das conversas | Aluno (vem pronto no próprio servidor; Supabase dele é opcional) |
 | Chave de IA (OpenAI) | Aluno (paga só pelo uso, centavos por conversa) |
 | Suporte de "meu servidor caiu" | Aluno resolve sozinho, ou suporte da própria Hostinger/provedor — nunca a Daxus |
 | Ensinar a instalar e operar | Daxus (curso, vídeos, guias em `docs/`) |
@@ -114,7 +115,7 @@ cria essa conta sozinho e já vincula o usuário administrador a ela
 
 Dentro dessa conta, o aluno cadastra em **Clientes** cada negócio que ele
 atende (a pizzaria, o consultório, a barbearia — quantos quiser), cada um com
-seus próprios números e bots, todos no mesmo Supabase da conta. Não existe
+seus próprios números e bots, todos no mesmo banco de conversas da conta. Não existe
 "uma conta por cliente do aluno" — só existe uma conta por aluno.
 
 O menu "Plataforma" (Contas/Servidores/Eventos) só aparece para quem de fato
@@ -140,20 +141,58 @@ o menu:
    equipe) rejeitam explicitamente `role === "client"`, redirecionando para
    `/portal`. Um login de cliente nunca alcança uma página ou server action
    do painel da equipe, mesmo se souber a URL.
-2. Todo serviço do portal (`src/server/services/portal.ts`) filtra
-   explicitamente por `client_id`, nunca só por `account_id` — segue o mesmo
-   princípio já documentado para as queries do aluno na plataforma de cursos:
-   confiar só em RLS ou só em esconder a UI não basta, o filtro tem que estar
-   explícito em cada consulta. Um cliente não pode ver a conversa de outro
-   cliente mesmo adivinhando um id de conversa.
+2. A caixa de entrada (`src/server/services/inbox.ts`) e os indicadores do
+   portal (`src/server/services/portal.ts`) filtram explicitamente por
+   `client_id` quando o login é de cliente, nunca só por `account_id` — o
+   mesmo princípio já documentado para as queries do aluno na plataforma de
+   cursos: confiar só em RLS ou só em esconder a UI não basta, o filtro tem
+   que estar explícito em cada consulta. Um cliente não pode ver nem mexer
+   na conversa de outro cliente mesmo adivinhando um id (coberto por teste
+   automatizado).
 
-O portal mostra hoje: conversas (lidas, não respondidas — sem caixa de
-resposta), categoria (o bot categoriza, o cliente pode corrigir) e um status
-leve de CRM — "em aberto" / "finalizada" (`conversations.resolved_at`,
-separado do `status` técnico que controla o bot, porque uma conversa pode
-fechar tecnicamente por timeout e continuar em aberto como lead). "Em aberto"
-nunca é filtrado por período — um lead de 40 dias atrás não pode sumir
-sozinho da lista; só a contagem de "finalizadas" é por período, como métrica.
+O cliente final usa **a mesma caixa de entrada** da equipe do aluno (ver
+"A caixa de entrada" abaixo): conversas, resposta pelo próprio painel,
+interruptor do bot por conversa, categoria, notas internas e um status leve
+de CRM — "em aberto" / "finalizada" (`conversations.resolved_at`, separado do
+`status` técnico que controla o bot, porque uma conversa pode fechar
+tecnicamente por timeout e continuar em aberto como lead). "Em aberto" nunca
+é filtrado por período — um lead de 40 dias atrás não pode sumir sozinho da
+lista; só a contagem de "finalizadas" é por período, como métrica. O login
+do cliente cai direto na caixa de entrada; os indicadores ficam numa aba ao
+lado.
+
+### A caixa de entrada, e o bot sob controle explícito
+
+Pedido do Lorennzo depois de testar o primeiro portal ("extremamente
+amador"): o cliente final precisa de uma interface de verdade, no nível do
+CRM de atendimento que ele mesmo já construiu para a Daxus (o "Daxus Pulse"
+— lista, conversa e ficha do contato em três colunas). Virou uma tela só,
+usada pela equipe do aluno e pelo cliente final:
+
+- **Três colunas**: lista (busca por nome/telefone/mensagem; abas "em
+  aberto", "precisa de você", "finalizadas", "todas", com contadores),
+  conversa (com resposta pelo painel — o cliente não precisa mais do
+  WhatsApp Web) e ficha do contato (notas internas com salvamento
+  automático, detalhes, bloquear). Atualiza sozinha a cada 5 segundos.
+- **O bot nunca some sem explicação.** No primeiro teste real, o bot
+  "desativou" e não havia como religar. Causa: a regra de chamar atendente
+  era aberta demais ("quando não conseguir resolver") — com a base de
+  conhecimento vazia, o bot passava a conversa para a equipe cedo e ficava
+  6 h em silêncio, sem nenhum botão óbvio para voltar. Hoje: (1) a regra foi
+  fechada — só chama atendente quando o cliente pede uma pessoa, ao
+  concluir um pedido/agendamento que a equipe confirma, ou se o cliente
+  segue insatisfeito, nunca só por não saber uma resposta; (2) cada
+  conversa mostra o estado do bot e o porquê ("pausado até 19:45 porque
+  alguém da equipe respondeu", "desligado à mão", "desligado no número
+  inteiro"…) com a ação certa ao lado; (3) existe um interruptor explícito
+  por conversa (`contacts.bot_disabled`) — desligado fica desligado até
+  alguém religar, e religar também encerra qualquer pausa automática e o
+  "precisa de você".
+- **Responder pelo painel segue a mesma regra de responder pelo celular**:
+  o bot pausa naquele contato pelo tempo configurado (padrão 6 h) e volta
+  sozinho. Foi uma escolha consciente contra "desligar para sempre ao
+  responder": com pausa, uma conversa esquecida volta a ser atendida pelo
+  bot; quem quer o bot fora de vez usa o interruptor.
 
 ### O Evolution (WhatsApp) nunca fica público
 
@@ -163,15 +202,30 @@ Docker. Ninguém de fora, nem o próprio aluno, acessa a API do Evolution
 diretamente. Isso reduz a superfície de ataque e simplifica a instalação (um
 domínio a menos para configurar).
 
-### Dados do aluno ficam no banco do aluno, não no nosso
+### Dados do aluno ficam na infraestrutura do aluno, não na nossa
 
 Existem dois bancos de dados por instalação: um "plano de controle" (contas,
-números, bots — dados operacionais do painel) e um "plano de dados" no
-Supabase do próprio aluno (conversas, contatos, base de conhecimento
-vetorizada). Essa separação existe desde a Tentativa 1 e continua válida: a
-Daxus (e, no modelo atual, nem o próprio código da Daxus hospedado em algum
-lugar central) nunca vê o conteúdo das conversas do cliente final. É um
-argumento de privacidade real, não só discurso.
+números, bots — dados operacionais do painel) e um "plano de dados"
+(conversas, contatos, base de conhecimento vetorizada). A Daxus nunca vê o
+conteúdo das conversas do cliente final. É um argumento de privacidade real,
+não só discurso.
+
+**Mudança em 2026-09-24: o Supabase deixou de ser obrigatório.** Na
+Tentativa 1 (painel hospedado pela Daxus), o Supabase do aluno era o único
+jeito de as conversas não passarem por um banco da Daxus. No modelo atual o
+servidor inteiro já é do aluno — então o banco do próprio servidor atende a
+mesma promessa sem exigir nada dele. O Lorennzo apontou que a string de
+conexão do Supabase ("Session pooler", troca de senha na URL) era o passo
+mais difícil para quem não é técnico. Hoje:
+
+- No VPS, as conversas ficam num Postgres com pgvector que sobe junto
+  (serviço `dados`); no Render, no mesmo banco do painel. O aluno não
+  configura nada — Integrações mostra "Banco de dados: ativo".
+- O Supabase continua disponível como opção "avançada" para quem quer ver as
+  tabelas pelo painel do Supabase ou manter as conversas fora do servidor.
+- Troca aceita: com o banco no servidor, o backup diário fica no mesmo disco
+  (`/var/backups/chatbot`). Vale orientar no curso a copiar para fora (rclone
+  → Google Drive). Com a retenção de 30 dias, o volume é pequeno.
 
 ### Evolution API é via WhatsApp Web (Baileys), não API oficial
 
@@ -208,7 +262,7 @@ guarda os bytes numa memória de curtíssimo prazo do próprio processo
 de resposta — que roda alguns segundos depois, após o debounce — conseguir
 mandar a imagem de verdade para o modelo (os modelos já usados, GPT-5.4 e
 GPT-4.1, enxergam imagem nativamente, não precisou de modelo novo nem de
-infraestrutura nova). A imagem em si **nunca é gravada no Supabase do
+infraestrutura nova). A imagem em si **nunca é gravada no banco de conversas do
 aluno** — só o texto (legenda, se tiver) fica no histórico. Isso é
 consistente com a mesma lógica da retenção de 30 dias: menos dado sensível
 do cliente final guardado, menos custo de armazenamento. Efeito colateral
@@ -227,7 +281,7 @@ conectado.
 ### Retenção de 30 dias, mas as estatísticas ficam
 
 Conversas e mensagens sem atividade há mais de 30 dias (configurável) são
-apagadas automaticamente no Supabase do aluno. As estatísticas agregadas
+apagadas automaticamente no banco de conversas do aluno. As estatísticas agregadas
 (quantas conversas, quantas mensagens por dia) não são apagadas — o gráfico
 da Visão Geral continua funcionando. Motivo: não faz sentido guardar o
 histórico de conversa do cliente final indefinidamente, nem do ponto de
@@ -237,7 +291,7 @@ vista de custo, nem de privacidade.
 
 O Lorennzo contratou um VPS de verdade (Hostinger, KVM1, Ubuntu 24.04 LTS) e
 rodou o instalador ao vivo — a primeira vez que isso aconteceu fora deste
-ambiente de desenvolvimento. Dois bugs reais apareceram, os dois bloqueavam
+ambiente de desenvolvimento. Três bugs reais apareceram, todos bloqueavam
 100% das instalações (não eram falha de configuração dele):
 
 1. **O repositório estava privado.** `curl` para um arquivo bruto de
@@ -290,23 +344,27 @@ reverificar depois de mexer no código relacionado).
 | Limpeza automática de conversas antigas (30 dias) | sim | não (roda uma vez por dia, difícil de observar ao vivo) |
 | Admin: contas, servidores, eventos | parcial | sim |
 | Status de CRM (em aberto/finalizado), independente do status técnico do bot | não | sim |
-| Portal do cliente final (`/portal`): login escopado, conceder acesso, categorizar, finalizar/reabrir, métricas | não | sim (dois perfis, dados isolados por cliente confirmados ao vivo) |
-| Instalador do VPS (`infra/provision.sh`) | lógica isolada testada | em andamento — teste real na Hostinger (2026-09-24) já achou e corrigiu 2 bugs que bloqueavam 100% das instalações (ver abaixo) |
+| Portal do cliente final (`/portal`): login escopado, conceder acesso, métricas | sim (escopo por cliente) | sim (dois perfis, dados isolados por cliente confirmados ao vivo) |
+| Caixa de entrada em 3 colunas (equipe e cliente final): busca, abas, responder pelo painel, notas, atualização automática | sim | sim (equipe e cliente, 2026-09-24) |
+| Interruptor do bot por conversa + estado explicado (pausado/desligado/motivo) | sim | sim |
+| Banco das conversas no próprio servidor (sem Supabase) | parcial (fallback testado em dev) | não — validar no VPS depois do `git pull` (serviço `dados`) |
+| Horários no fuso de Brasília (servidor em UTC) | não | sim |
+| Modais cobrindo a tela toda (antes cortados dentro da página) | não | sim |
+| Instalador do VPS (`infra/provision.sh`) | lógica isolada testada | **sim** — Hostinger (2026-09-24); achou e corrigiu 3 bugs que bloqueavam 100% das instalações (ver abaixo) |
 | `render.yaml` (instalação no Render) | validado contra o schema oficial | **sim**, uma vez, ao vivo (custo real medido) |
 
 ## O que ainda não existe (backlog consciente, não esquecido)
 
-- **Teste de instalação real num VPS de ponta a ponta.** Este ambiente de
-  desenvolvimento não tem Docker, então o instalador nunca rodou de verdade
-  fora de testes isolados de lógica. É o próximo passo mais importante antes
-  de qualquer divulgação.
+- **Terminar a Fase 0 no VPS real.** A instalação já rodou na Hostinger;
+  falta passar pelo resto de `docs/fase0-checklist.md` com WhatsApp real
+  (áudio, imagem, resposta pela caixa de entrada, interruptor do bot, banco
+  `dados`). É o próximo passo antes de qualquer divulgação.
 - **Termo de uso.** Precisa deixar explícito o que está na tabela de
   responsabilidades acima: software entregue como está, operação é do aluno.
-- **Inbox com resposta humana pela plataforma**, incluindo dar essa mesma
-  caixa de resposta ao cliente final no portal (hoje ele só categoriza e
-  finaliza; para responder, ainda precisa do WhatsApp de verdade). A função
-  de enviar mensagem via Evolution já existe, reaproveitada do bot — falta a
-  UI e a tela atualizar sozinha (polling simples).
+- **Caixa de entrada, próximos passos**: respostas rápidas (atalho "/"),
+  enviar arquivo/áudio pelo painel, "não lidas", e talvez um tema claro para
+  o portal do cliente (o Daxus Pulse, referência do Lorennzo, é claro; o
+  painel hoje é só escuro).
 - **Kanban de leads (mini-CRM).** Ideia do Lorennzo, explicitamente para uma
   segunda fase. A categorização de conversas e o status aberto/finalizado já
   construídos são a base de dados que esse Kanban vai usar (cada categoria
@@ -330,7 +388,8 @@ tratada como uma proposta de mudança de rumo, não como uma correção óbvia:
 - **O Evolution nunca fica exposto publicamente**, em nenhum tipo de
   instalação.
 - **As conversas do cliente final nunca passam pelo banco de dados da
-  Daxus** — sempre no Supabase do próprio aluno.
+  Daxus** — sempre na infraestrutura do próprio aluno (o banco do servidor
+  dele, ou o Supabase dele, se ele preferir).
 - **Nunca usar `window.confirm/prompt/alert`** em nenhuma tela — sempre
   `useDialogs()` (ver `docs/convencoes.md`).
 - **`APP_SECRET` nunca deve ser trocado** numa instalação que já tem dados —
@@ -348,6 +407,6 @@ tratada como uma proposta de mudança de rumo, não como uma correção óbvia:
 | `docs/operacao.md` | Referência técnica do VPS (comandos, rotina, troubleshooting). |
 | `docs/instalar-vps.md` | Guia do aluno, sem jargão, para instalar no VPS. |
 | `docs/deploy-render.md` | Guia do aluno para instalar via Render (caminho alternativo). |
-| `docs/onboarding-aluno.md` | O que o aluno faz depois de instalado (conectar Supabase, OpenAI, WhatsApp). |
+| `docs/onboarding-aluno.md` | O que o aluno faz depois de instalado (OpenAI, WhatsApp, clientes; o que o dono do negócio precisa saber). |
 | `docs/fase0-checklist.md` | Checklist técnico para validar a primeira instalação real. |
 | `docs/roadmap.md` | Fases do projeto, o que já foi feito e o que foi descartado. |

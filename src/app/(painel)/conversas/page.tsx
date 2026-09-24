@@ -1,76 +1,64 @@
 import Link from "next/link";
 import { Database } from "lucide-react";
 import { requireAccount } from "@/server/auth/guards";
-import { listNumbers } from "@/server/services/numbers";
-import { listConversations, listUsedCategories } from "@/server/services/conversations";
+import { getInboxConversation, listInbox, parseInboxParams, type InboxScope } from "@/server/services/inbox";
 import { TenantNotConfigured } from "@/server/tenant";
-import { EmptyState, PageHeader } from "@/components/ui/primitives";
-import { formatPhone, formatRelative } from "@/lib/utils";
-import { ConversasClient, type ConversationRow } from "./conversas-client";
+import { EmptyState } from "@/components/ui/primitives";
+import { Inbox } from "@/components/inbox/inbox";
+import { renameContactAction, saveNotesAction, sendMessageAction, setBlockedAction, setBotAction, setCategoryAction, setResolvedAction } from "./actions";
 
 export const metadata = { title: "Conversas" };
 
 export default async function ConversasPage(props: PageProps<"/conversas">) {
-  const searchParams = await props.searchParams;
   const { account } = await requireAccount();
-  const numbers = await listNumbers(account.id);
+  const { filters, selectedId } = parseInboxParams(await props.searchParams);
+  const scope: InboxScope = { accountId: account.id, clientId: null, staff: true };
 
-  // Só aceita um número que pertença à conta (evita erro de uuid inválido no banco do aluno).
-  const numeroParam = typeof searchParams.numero === "string" ? searchParams.numero : undefined;
-  const numberId = numeroParam && numbers.some((n) => n.number.id === numeroParam) ? numeroParam : undefined;
-  const needsHuman = searchParams.humano === "1";
-  const category = typeof searchParams.categoria === "string" ? searchParams.categoria : undefined;
-  const resolvido = searchParams.resolvido;
-  const resolved = resolvido === "1" ? true : resolvido === "0" ? false : undefined;
-
-  let rows: ConversationRow[] = [];
-  let categories: string[] = [];
-  let problem: { title: string; description: string } | null = null;
   try {
-    const [items, cats] = await Promise.all([listConversations(account.id, { numberId, needsHuman, category, resolved, limit: 100 }), listUsedCategories(account.id)]);
-    categories = cats;
-    rows = items.map((c) => {
-      const name = c.contact_name ?? c.contact_push_name ?? null;
-      return {
-        id: c.id,
-        title: name ?? formatPhone(c.contact_phone),
-        phone: name && c.contact_phone ? formatPhone(c.contact_phone) : null,
-        numberLabel: c.numberLabel,
-        preview: c.last_message_preview,
-        status: c.status,
-        needsHuman: c.needs_human,
-        category: c.category,
-        resolved: c.resolved_at != null,
-        lastMessageAt: formatRelative(c.last_message_at),
-        messageCount: Number(c.message_count ?? 0),
-      };
-    });
-  } catch (err) {
-    if (err instanceof TenantNotConfigured) {
-      problem = { title: "Supabase ainda não conectado", description: "As conversas ficam guardadas no banco de dados da sua conta. Conecte o seu Supabase em Integrações para vê-las aqui." };
-    } else {
-      const msg = err instanceof Error ? err.message : String(err);
-      problem = { title: "Não foi possível acessar as conversas", description: `${msg.endsWith(".") ? msg : `${msg}.`} Confira a conexão com o Supabase em Integrações.` };
-    }
-  }
-
-  return (
-    <div className="animate-fade-in-up">
-      <PageHeader title="Conversas" description="Tudo o que os bots e a sua equipe conversaram com os clientes." />
-      {problem ? (
-        <EmptyState
-          icon={<Database className="h-6 w-6" />}
-          title={problem.title}
-          description={problem.description}
-          action={
-            <Link href="/integracoes" className="inline-flex h-9 items-center gap-2 rounded-md bg-accent px-3.5 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-strong">
-              Ir para Integrações
+    const [inbox, selected] = await Promise.all([listInbox(scope, filters), selectedId ? getInboxConversation(scope, selectedId) : Promise.resolve(null)]);
+    return (
+      <Inbox
+        basePath="/conversas"
+        audience="staff"
+        list={inbox.items}
+        counts={inbox.counts}
+        categories={inbox.categories}
+        numbers={inbox.numbers}
+        filters={filters}
+        selectedId={selectedId}
+        selected={selected}
+        actions={{
+          setResolved: setResolvedAction,
+          setCategory: setCategoryAction,
+          setBot: setBotAction,
+          send: sendMessageAction,
+          saveNotes: saveNotesAction,
+          rename: renameContactAction,
+          setBlocked: setBlockedAction,
+        }}
+        emptyHint={
+          <>
+            Nenhum número ainda.{" "}
+            <Link href="/numeros" className="text-accent hover:underline">
+              Conectar um WhatsApp
             </Link>
-          }
-        />
-      ) : (
-        <ConversasClient numbers={numbers.map((n) => ({ id: n.number.id, label: n.number.label }))} numberId={numberId ?? null} needsHuman={needsHuman} category={category ?? null} categories={categories} resolved={resolved ?? null} rows={rows} />
-      )}
-    </div>
-  );
+          </>
+        }
+      />
+    );
+  } catch (err) {
+    if (!(err instanceof TenantNotConfigured)) throw err;
+    return (
+      <EmptyState
+        icon={<Database className="h-6 w-6" />}
+        title="Banco de dados das conversas não configurado"
+        description="As conversas ficam guardadas num banco de dados. Configure em Integrações para vê-las aqui."
+        action={
+          <Link href="/integracoes" className="text-sm text-accent hover:underline">
+            Ir para Integrações
+          </Link>
+        }
+      />
+    );
+  }
 }

@@ -21,6 +21,7 @@ export default async function IntegracoesPage() {
       schemaVersion: view.supabase.schemaVersion,
       latestVersion: view.supabase.latestVersion,
       masked: view.supabase.masked,
+      usingServerDb: view.supabase.usingServerDb,
       usingLocalDev: view.supabase.usingLocalDev,
     },
     openai: {
@@ -36,7 +37,7 @@ export default async function IntegracoesPage() {
 
   return (
     <div className="animate-fade-in-up">
-      <PageHeader title="Integrações" description="Conecte o banco de dados das conversas e a inteligência do bot. Os segredos ficam criptografados e nunca aparecem no navegador." />
+      <PageHeader title="Integrações" description="A inteligência do bot e onde as conversas ficam guardadas. Os segredos ficam criptografados e nunca aparecem no navegador." />
       <IntegracoesClient view={data} models={CHAT_MODEL_OPTIONS} />
     </div>
   );

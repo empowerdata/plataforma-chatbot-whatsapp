@@ -28,6 +28,7 @@ export type IntegrationsView = {
     schemaVersion: number;
     latestVersion: number;
     masked: string | null;
+    usingServerDb: boolean;
     usingLocalDev: boolean;
   };
   openai: {
@@ -79,8 +80,8 @@ function InfoBanner({ tone = "info", children }: { tone?: "info" | "warning"; ch
 export function IntegracoesClient({ view, models }: { view: IntegrationsView; models: ModelOption[] }) {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <SupabaseCard data={view.supabase} />
       <OpenAiCard data={view.openai} models={models} />
+      <SupabaseCard data={view.supabase} />
     </div>
   );
 }
@@ -133,7 +134,7 @@ function SupabaseCard({ data }: { data: IntegrationsView["supabase"] }) {
   }
 
   async function handleRemove() {
-    const ok = await confirmDialog("As conversas continuam no seu Supabase; a plataforma só deixa de acessá-las.", {
+    const ok = await confirmDialog("As conversas antigas continuam no seu Supabase; a plataforma só deixa de acessá-las e as novas passam a ficar no banco do próprio servidor.", {
       title: "Remover a conexão com o Supabase?",
       destructive: true,
       confirmLabel: "Remover",
@@ -152,21 +153,76 @@ function SupabaseCard({ data }: { data: IntegrationsView["supabase"] }) {
     }
   }
 
+  const serverDbActive = data.usingServerDb && !data.configured;
+
+  const supabaseForm = (
+    <>
+      <Field label="String de conexão do Supabase" hint="Session pooler, com a senha do banco no lugar de [YOUR-PASSWORD].">
+        <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="postgresql://postgres.xxxx:[SUA-SENHA]@aws-0-sa-east-1.pooler.supabase.com:5432/postgres" />
+      </Field>
+
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" loading={saving} onClick={handleSave}>
+          {saving ? "Conectando e criando tabelas…" : "Conectar e instalar"}
+        </Button>
+        {data.configured ? (
+          <>
+            <Button size="sm" variant="outline" loading={testing} onClick={handleRecheck}>
+              Testar novamente
+            </Button>
+            <Button size="sm" variant="danger" loading={removing} onClick={handleRemove}>
+              Remover
+            </Button>
+          </>
+        ) : null}
+      </div>
+
+      <Collapsible title="Onde encontro a string de conexão?">
+        <ol className="list-decimal space-y-1 pl-4">
+          <li>Crie um projeto gratuito em supabase.com (guarde a senha do banco).</li>
+          <li>No projeto, clique em &quot;Connect&quot; no topo.</li>
+          <li>Escolha &quot;Session pooler&quot; e copie a URI.</li>
+          <li>Troque [YOUR-PASSWORD] pela senha do banco.</li>
+          <li>Cole aqui.</li>
+        </ol>
+        <p>Esqueceu a senha? Redefina em Project Settings → Database, dentro do seu projeto Supabase.</p>
+      </Collapsible>
+    </>
+  );
+
   return (
     <Card>
       <CardHeader
-        title="Supabase"
+        title="Banco de dados"
         description="Onde as conversas e contatos ficam guardados."
         action={
-          <Badge tone={meta.tone}>
-            <StatusDot tone={meta.tone === "danger" ? "danger" : meta.tone === "success" ? "success" : "neutral"} /> {meta.label}
-          </Badge>
+          serverDbActive ? (
+            <Badge tone="success">
+              <StatusDot tone="success" /> Ativo
+            </Badge>
+          ) : (
+            <Badge tone={meta.tone}>
+              <StatusDot tone={meta.tone === "danger" ? "danger" : meta.tone === "success" ? "success" : "neutral"} /> {meta.label}
+            </Badge>
+          )
         }
       />
       <div className="space-y-4 p-5">
         {data.usingLocalDev ? <InfoBanner>Ambiente de desenvolvimento: usando um banco local até você conectar um Supabase.</InfoBanner> : null}
 
-        {data.configured ? (
+        {serverDbActive ? (
+          <>
+            <div className="rounded-md border border-success/25 bg-success-soft px-3 py-2.5 text-xs text-foreground/90">
+              Usando o banco de dados do seu próprio servidor — não precisa configurar nada. As conversas ficam guardadas no seu servidor, com cópia de segurança diária.
+            </div>
+            <Collapsible title="Avançado: guardar as conversas num Supabase próprio">
+              <p>Opcional. Útil se você quer ver as tabelas pelo painel do Supabase ou manter as conversas fora do servidor. Sem isso, está tudo funcionando.</p>
+              <div className="space-y-3 pt-1">{supabaseForm}</div>
+            </Collapsible>
+          </>
+        ) : null}
+
+        {!serverDbActive && data.configured ? (
           <div className="space-y-1.5 rounded-md border border-border bg-surface-2 px-3 py-2.5 text-xs">
             <div className="truncate font-mono text-foreground">{data.masked}</div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted">
@@ -185,36 +241,7 @@ function SupabaseCard({ data }: { data: IntegrationsView["supabase"] }) {
           <p className="text-xs text-danger">{data.error}</p>
         ) : null}
 
-        <Field label="String de conexão" hint="Da mesma que você usa no seu projeto Supabase.">
-          <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="postgresql://postgres.xxxx:[SUA-SENHA]@aws-0-sa-east-1.pooler.supabase.com:5432/postgres" />
-        </Field>
-
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" loading={saving} onClick={handleSave}>
-            {saving ? "Conectando e criando tabelas…" : "Conectar e instalar"}
-          </Button>
-          {data.configured ? (
-            <>
-              <Button size="sm" variant="outline" loading={testing} onClick={handleRecheck}>
-                Testar novamente
-              </Button>
-              <Button size="sm" variant="danger" loading={removing} onClick={handleRemove}>
-                Remover
-              </Button>
-            </>
-          ) : null}
-        </div>
-
-        <Collapsible title="Onde encontro a string de conexão?">
-          <ol className="list-decimal space-y-1 pl-4">
-            <li>Crie um projeto gratuito em supabase.com (guarde a senha do banco).</li>
-            <li>No projeto, clique em &quot;Connect&quot; no topo.</li>
-            <li>Escolha &quot;Session pooler&quot; e copie a URI.</li>
-            <li>Troque [YOUR-PASSWORD] pela senha do banco.</li>
-            <li>Cole aqui.</li>
-          </ol>
-          <p>Esqueceu a senha? Redefina em Project Settings → Database, dentro do seu projeto Supabase.</p>
-        </Collapsible>
+        {serverDbActive ? null : supabaseForm}
       </div>
     </Card>
   );

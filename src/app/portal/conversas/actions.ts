@@ -2,48 +2,47 @@
 
 import { revalidatePath } from "next/cache";
 import { getClientAccessOrThrow } from "@/server/auth/guards";
-import { setPortalConversationCategory, setPortalConversationResolved } from "@/server/services/portal";
+import { renameInboxContact, saveInboxNotes, sendInboxMessage, setInboxBlocked, setInboxBot, setInboxCategory, setInboxResolved, type InboxScope } from "@/server/services/inbox";
 import { TenantNotConfigured } from "@/server/tenant";
+import type { ActionResult } from "@/components/inbox/types";
 
-type Result = { error: string | null };
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function fail(err: unknown): Result {
-  if (err instanceof TenantNotConfigured) return { error: "Atendimento ainda não disponível." };
-  return { error: err instanceof Error ? err.message : String(err) };
-}
-
-function assertId(id: string): void {
-  if (typeof id !== "string" || !UUID_RE.test(id)) throw new Error("Conversa não encontrada.");
-}
-
-function revalidate(id: string): void {
-  revalidatePath("/portal/conversas");
-  revalidatePath(`/portal/conversas/${id}`);
-  revalidatePath("/portal");
-}
-
-export async function setPortalCategoryAction(id: string, category: string | null): Promise<Result> {
+/** O escopo vem sempre da sessão (client_id do login), nunca do navegador. */
+async function run(fn: (scope: InboxScope, author: string) => Promise<void>): Promise<ActionResult> {
   try {
-    assertId(id);
-    const { client } = await getClientAccessOrThrow();
-    await setPortalConversationCategory(client.accountId, client.id, id, category && category.trim() ? category.trim().slice(0, 40) : null);
-    revalidate(id);
+    const { client, user } = await getClientAccessOrThrow();
+    await fn({ accountId: client.accountId, clientId: client.id, staff: false }, user.name);
+    revalidatePath("/portal/conversas");
     return { error: null };
   } catch (err) {
-    return fail(err);
+    if (err instanceof TenantNotConfigured) return { error: "Atendimento ainda não disponível." };
+    return { error: err instanceof Error ? err.message : String(err) };
   }
 }
 
-export async function setPortalResolvedAction(id: string, resolved: boolean): Promise<Result> {
-  try {
-    assertId(id);
-    const { client } = await getClientAccessOrThrow();
-    await setPortalConversationResolved(client.accountId, client.id, id, resolved);
-    revalidate(id);
-    return { error: null };
-  } catch (err) {
-    return fail(err);
-  }
+export async function setResolvedAction(id: string, resolved: boolean) {
+  return run((s) => setInboxResolved(s, id, resolved === true));
+}
+
+export async function setCategoryAction(id: string, category: string | null) {
+  return run((s) => setInboxCategory(s, id, typeof category === "string" ? category : null));
+}
+
+export async function setBotAction(id: string, enabled: boolean) {
+  return run((s) => setInboxBot(s, id, enabled === true));
+}
+
+export async function sendMessageAction(id: string, text: string) {
+  return run((s, author) => sendInboxMessage(s, id, String(text ?? ""), author));
+}
+
+export async function saveNotesAction(id: string, notes: string) {
+  return run((s) => saveInboxNotes(s, id, String(notes ?? "")));
+}
+
+export async function renameContactAction(id: string, name: string) {
+  return run((s) => renameInboxContact(s, id, String(name ?? "")));
+}
+
+export async function setBlockedAction(id: string, blocked: boolean) {
+  return run((s) => setInboxBlocked(s, id, blocked === true));
 }

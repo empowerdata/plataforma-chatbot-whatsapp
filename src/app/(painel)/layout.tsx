@@ -19,7 +19,7 @@ export default async function PainelLayout({ children }: { children: React.React
   const user = await requireUser();
 
   // Login de cliente final (portal escopado a um client_id) nunca vê o painel da equipe.
-  if (user.role === "client") redirect("/portal");
+  if (user.role === "client") redirect("/portal/conversas");
 
   // "Administrador da plataforma" de verdade só é quem NÃO tem conta própria
   // vinculada — ou seja, gerencia várias contas hospedadas por fora. Numa
@@ -76,8 +76,9 @@ export default async function PainelLayout({ children }: { children: React.React
       <Sidebar productName={productName} sections={sections} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar userName={user.name} userEmail={user.email} isPlatformAdmin={isPlatformAdmin} actingAs={actingAs && account ? { accountName: account.name } : null} onLogout={logoutAction} onStopActing={stopActingAction} />
-        <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-6xl px-6 py-6">{children}</div>
+        {/* Telas "de ponta a ponta" (a caixa de entrada) marcam data-fullbleed e ocupam a área toda, sem margem nem largura máxima. */}
+        <main className="min-h-0 flex-1 overflow-y-auto has-[[data-fullbleed]]:overflow-hidden">
+          <div className="mx-auto w-full max-w-6xl px-6 py-6 has-[[data-fullbleed]]:h-full has-[[data-fullbleed]]:max-w-none has-[[data-fullbleed]]:p-0">{children}</div>
         </main>
       </div>
     </div>

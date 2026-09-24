@@ -21,8 +21,10 @@ export default async function OverviewPage(props: PageProps<"/">) {
   const { account } = await requireAccount();
   const [overview, integrations, events] = await Promise.all([getOverview(account.id, days), getIntegrationView(account.id), listEvents(account.id, 8)]);
 
+  const databaseReady = integrations.supabase.configured || integrations.supabase.usingServerDb || integrations.supabase.usingLocalDev;
   const setup = [
-    { done: integrations.supabase.configured || integrations.supabase.usingLocalDev, label: "Conectar o Supabase", href: "/integracoes" },
+    // Numa instalação própria o banco já vem pronto; o passo só aparece se faltar mesmo.
+    ...(databaseReady ? [] : [{ done: false, label: "Configurar o banco de dados das conversas", href: "/integracoes" }]),
     { done: integrations.openai.configured || integrations.openai.usingDevKey, label: "Conectar a OpenAI", href: "/integracoes" },
     { done: overview.numbers.length > 0, label: "Adicionar um número de WhatsApp", href: "/numeros" },
     { done: overview.numbers.some((n) => n.botName), label: "Atribuir um bot ao número", href: "/bots" },

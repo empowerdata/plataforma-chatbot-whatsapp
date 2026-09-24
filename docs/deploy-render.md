@@ -34,14 +34,16 @@ pronto para conectar.
 
 A primeira tela mostra um checklist. Siga ele nesta ordem:
 
-1. **Conectar o Supabase** — é onde ficam as conversas dos seus clientes.
-   Grátis. O próprio painel te leva passo a passo (Integrações → Supabase).
-2. **Conectar a OpenAI** — é a inteligência do bot. Custa centavos por
-   conversa, sem mensalidade. O painel também guia (Integrações → OpenAI).
-3. **Adicionar seu primeiro número de WhatsApp** — aparece um QR code, é só
+1. **Conectar a OpenAI** — é a inteligência do bot. Custa centavos por
+   conversa, sem mensalidade. O painel guia (Integrações → OpenAI).
+2. **Adicionar seu primeiro número de WhatsApp** — aparece um QR code, é só
    ler com o WhatsApp do celular, igual ao WhatsApp Web.
-4. **Criar seu primeiro bot** — escolha um modelo pronto (pizzaria, salão,
+3. **Criar seu primeiro bot** — escolha um modelo pronto (pizzaria, salão,
    clínica...) e em poucos minutos já está atendendo.
+
+O banco de dados das conversas já vem pronto (é o mesmo banco que o Render
+criou para o painel) — não precisa criar conta no Supabase nem em lugar
+nenhum.
 
 ## Perguntas comuns
 

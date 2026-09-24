@@ -38,7 +38,7 @@ export const requireAccount = cache(async (): Promise<AccountContext> => {
   const user = await requireUser();
   // Login de cliente final (portal, escopado a um único client_id) nunca deve
   // cair no painel da equipe — mesmo tendo accountId preenchido.
-  if (user.role === "client") redirect("/portal");
+  if (user.role === "client") redirect("/portal/conversas");
   const db = await getDb();
   let accountId = user.accountId;
   let actingAs = false;

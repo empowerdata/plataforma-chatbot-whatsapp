@@ -15,6 +15,8 @@ export type IntegrationView = {
     schemaVersion: number;
     latestVersion: number;
     masked: string | null;
+    /** Sem Supabase, a instalação própria usa o Postgres do próprio servidor (padrão). */
+    usingServerDb: boolean;
     /** Em dev sem Supabase configurado usamos um banco local. */
     usingLocalDev: boolean;
   };
@@ -50,7 +52,8 @@ export async function getIntegrationView(accountId: string): Promise<Integration
       schemaVersion: row.supabaseSchemaVersion,
       latestVersion: TENANT_SCHEMA_VERSION,
       masked: dbUrl ? maskDbUrl(dbUrl) : null,
-      usingLocalDev: !dbUrl && !env.isProd,
+      usingServerDb: !dbUrl && !!env.DATA_DATABASE_URL,
+      usingLocalDev: !dbUrl && !env.DATA_DATABASE_URL && !env.isProd,
     },
     openai: {
       configured: !!key,

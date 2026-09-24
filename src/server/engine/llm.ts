@@ -53,7 +53,8 @@ export function buildTools(handlers: ToolHandlers, categoryOptions: string[] = [
   }
   if (handlers.chamar_atendente) {
     tools.chamar_atendente = tool({
-      description: "Transfere a conversa para um atendente humano da equipe. Use quando o cliente pedir, quando não conseguir resolver, ou ao concluir um pedido/agendamento.",
+      description:
+        "Transfere a conversa para um atendente humano da equipe (o bot fica em silêncio nesta conversa até a equipe liberar). Use SOMENTE quando o cliente pedir claramente para falar com uma pessoa, ao concluir um pedido/agendamento que a equipe precisa confirmar, ou se o cliente seguir insatisfeito depois de você tentar ajudar. Nunca use só por não saber uma resposta.",
       inputSchema: z.object({
         motivo: z.string().describe("Motivo curto da transferência"),
         resumo: z.string().describe("Resumo da conversa e do que o cliente precisa, para a equipe"),

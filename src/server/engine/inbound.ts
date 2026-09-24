@@ -173,7 +173,7 @@ async function handleInbound(ctx: NumberContext, msg: InboundMessage): Promise<v
 
   // O bot deve responder?
   if (!number.botEnabled || !ctx.bot || !ctx.bot.isActive) return;
-  if (contact.is_blocked) return;
+  if (contact.is_blocked || contact.bot_disabled) return;
   if (contact.bot_paused_until && new Date(contact.bot_paused_until) > now) return;
   if (conversation.status === "human") await store.setConversationStatus(conversation.id, "open", conversation.needs_human, null);
 
@@ -220,7 +220,7 @@ export async function respondToContact(input: RespondInput): Promise<void> {
   const contact = await store.getContact(input.contactId);
   const conversation = await store.getConversation(input.conversationId);
   if (!contact || !conversation) return;
-  if (contact.is_blocked) return;
+  if (contact.is_blocked || contact.bot_disabled) return;
   if (contact.bot_paused_until && new Date(contact.bot_paused_until) > new Date()) return;
 
   const recent = await store.recentMessages(conversation.id, config.behavior.historyMessages);

@@ -5,15 +5,66 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Fuso de exibição. O servidor (container) roda em UTC; sem fuso explícito
+ * todo horário na tela saía 3 horas adiantado.
+ */
+export const DISPLAY_TZ = "America/Sao_Paulo";
+
+function toDate(d: Date | string): Date {
+  return typeof d === "string" ? new Date(d) : d;
+}
+
 export function formatDateTime(d: Date | string | null | undefined): string {
   if (!d) return "—";
-  const date = typeof d === "string" ? new Date(d) : d;
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(date);
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: DISPLAY_TZ }).format(toDate(d));
+}
+
+/** "14:32" no fuso de exibição. */
+export function formatTime(d: Date | string): string {
+  return new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: DISPLAY_TZ }).format(toDate(d));
+}
+
+/** Chave do dia (AAAA-MM-DD) no fuso de exibição — para agrupar mensagens por dia. */
+export function dayKey(d: Date | string): string {
+  return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: DISPLAY_TZ }).format(toDate(d));
+}
+
+/** "Hoje", "Ontem" ou "12 de setembro" (com ano se não for o atual). */
+export function formatDayLabel(d: Date | string): string {
+  const date = toDate(d);
+  const now = new Date();
+  const key = dayKey(date);
+  if (key === dayKey(now)) return "Hoje";
+  if (key === dayKey(new Date(now.getTime() - 86400_000))) return "Ontem";
+  const sameYear = key.slice(0, 4) === dayKey(now).slice(0, 4);
+  return new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "long", ...(sameYear ? {} : { year: "numeric" }), timeZone: DISPLAY_TZ }).format(date);
+}
+
+/** Horário curto para listas: "14:32" hoje, "Ontem", dia da semana nesta semana, senão "12/09". */
+export function formatListTime(d: Date | string): string {
+  const date = toDate(d);
+  const now = new Date();
+  const key = dayKey(date);
+  if (key === dayKey(now)) return formatTime(date);
+  if (key === dayKey(new Date(now.getTime() - 86400_000))) return "Ontem";
+  if (now.getTime() - date.getTime() < 6 * 86400_000) {
+    const wd = new Intl.DateTimeFormat("pt-BR", { weekday: "short", timeZone: DISPLAY_TZ }).format(date).replace(".", "");
+    return wd.charAt(0).toUpperCase() + wd.slice(1);
+  }
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: DISPLAY_TZ }).format(date);
+}
+
+/** Iniciais para avatar ("Ana Paula" → "AP", telefone → "#"). */
+export function initials(name: string | null | undefined): string {
+  const words = (name ?? "").replace(/[^\p{L}\s]/gu, " ").trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "#";
+  return (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : "")).toUpperCase();
 }
 
 export function formatRelative(d: Date | string | null | undefined): string {
   if (!d) return "—";
-  const date = typeof d === "string" ? new Date(d) : d;
+  const date = toDate(d);
   const diff = Date.now() - date.getTime();
   const min = Math.round(diff / 60000);
   if (min < 1) return "agora";

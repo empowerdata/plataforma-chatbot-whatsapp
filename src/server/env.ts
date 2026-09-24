@@ -16,6 +16,12 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   /** Postgres do plano de controle. Vazio = PGlite local. */
   DATABASE_URL: z.string().optional(),
+  /**
+   * Postgres (com pgvector) do próprio servidor para as conversas, quando a
+   * conta não conectou um Supabase. Numa instalação própria (VPS/Render) já
+   * vem preenchido — o aluno não precisa configurar banco nenhum.
+   */
+  DATA_DATABASE_URL: z.string().optional(),
   /** Chave-mestra usada para criptografar segredos dos alunos (AES-256-GCM). */
   APP_SECRET: z.string().min(16).optional(),
   /**

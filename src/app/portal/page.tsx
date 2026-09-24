@@ -6,7 +6,7 @@ import { TenantNotConfigured } from "@/server/tenant";
 import { Card, EmptyState, PageHeader } from "@/components/ui/primitives";
 import { formatNumber } from "@/lib/utils";
 
-export const metadata = { title: "Visão geral" };
+export const metadata = { title: "Indicadores" };
 
 const PERIODS = [7, 30, 90] as const;
 
@@ -27,7 +27,7 @@ export default async function PortalOverviewPage(props: PageProps<"/portal">) {
   if (!overview) {
     return (
       <div className="animate-fade-in-up">
-        <PageHeader title="Visão geral" />
+        <PageHeader title="Indicadores" />
         <EmptyState icon={<MessagesSquare className="h-6 w-6" />} title="Ainda não há dados" description="Assim que o atendimento começar, as conversas aparecem aqui." />
       </div>
     );
@@ -36,7 +36,7 @@ export default async function PortalOverviewPage(props: PageProps<"/portal">) {
   return (
     <div className="animate-fade-in-up">
       <PageHeader
-        title="Visão geral"
+        title="Indicadores"
         description={`Atendimento de ${client.name}.`}
         actions={
           <div className="flex items-center gap-1 rounded-md border border-border bg-surface-1 p-0.5">
@@ -72,11 +72,11 @@ export default async function PortalOverviewPage(props: PageProps<"/portal">) {
         </Card>
         <Card className="p-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted">Aguardando atendimento</span>
+            <span className="text-xs text-muted">Precisam de você</span>
             <Hand className="h-4 w-4 text-subtle" />
           </div>
           <div className="mt-2 text-2xl font-semibold tracking-tight">{formatNumber(overview.needsHuman)}</div>
-          <div className="mt-1 text-[11px] text-muted">O bot está em silêncio nelas</div>
+          <div className="mt-1 text-[11px] text-muted">O bot chamou a equipe nelas</div>
         </Card>
       </div>
 

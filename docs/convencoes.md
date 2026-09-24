@@ -46,15 +46,18 @@ Regras:
 2. `npm run build` passa (o build pega erros de RSC que o tsc não pega).
 3. Abrir no navegador e testar de verdade (dev: `npm run dev`, login `demo@local.test` / `demo123`).
 
+Datas na tela: sempre pelos formatadores de `src/lib/utils.ts` (`formatDateTime`, `formatTime`, `formatListTime`, `formatDayLabel`), que fixam o fuso `America/Sao_Paulo` — o servidor roda em UTC. Telas de ponta a ponta (como a caixa de entrada) marcam o elemento raiz com `data-fullbleed` para ocupar a área inteira do layout.
+
 ## Serviços disponíveis (src/server/services)
 
 - `accounts.ts`: listAccounts, getAccount, createAccount, updateAccount, listAccountUsers, createAccountUser, createPasswordSetupLink, setUserActive.
-- `integrations.ts`: getIntegrationView, saveSupabaseUrl, recheckSupabase, removeSupabase, saveOpenAiKey, recheckOpenAi, setOpenAiModel, removeOpenAi. Modelos: `CHAT_MODEL_OPTIONS` em `src/server/ai/provider.ts`.
-- `clients.ts`: listClients, getClient, createClient, updateClient, deleteClient.
+- `integrations.ts`: getIntegrationView (inclui `usingServerDb`), saveSupabaseUrl, recheckSupabase, removeSupabase, saveOpenAiKey, recheckOpenAi, setOpenAiModel, removeOpenAi. Modelos: `CHAT_MODEL_OPTIONS` em `src/server/ai/provider.ts`.
+- `clients.ts`: listClients, getClient, createClient, updateClient, deleteClient, listClientPortalUsers, createClientPortalUser, setClientPortalUserActive, newClientPortalSetupLink.
 - `numbers.ts`: listNumbers, getNumber, createNumber, getConnectionInfo, reconnectNumber, disconnectNumber, deleteNumber, updateNumber, assignBot. Rota de polling: `GET /api/numeros/[id]/conexao?refresh=1`.
 - `bots.ts`: listBots, getBot, createBot, updateBot, publishBot, duplicateBot, deleteBot. Modelos por nicho: `botTemplates` em `src/shared/bot-config.ts`.
 - `knowledge.ts`: listKnowledge, addTextItem, addFaqItem, addFileItem, addUrlItem, updateItem, deleteItem, reindexItem, reindexBot.
-- `conversations.ts`: listConversations, getConversationDetail, resolveConversation, setBotPausedForContact, setContactBlocked.
+- `inbox.ts` (caixa de entrada da equipe e do portal, sempre com um `InboxScope`): parseInboxParams, listInbox, getInboxConversation, setInboxResolved, setInboxCategory, setInboxBot, sendInboxMessage, saveInboxNotes, renameInboxContact, setInboxBlocked. A tela é `src/components/inbox/` (usada por `/conversas` e `/portal/conversas`, cada uma passando as próprias server actions).
+- `portal.ts`: getPortalOverview (indicadores do cliente final).
 - `stats.ts`: getOverview(accountId, days).
 - `events.ts`: logEvent, listEvents, listNumberEvents.
 - Playground do Studio: `POST /api/playground` com `{ botId, config, variables, history, userText }`.

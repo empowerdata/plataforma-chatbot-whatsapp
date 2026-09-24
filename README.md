@@ -1,6 +1,6 @@
 # Plataforma de chatbots WhatsApp (white label, self-hosted pelo aluno)
 
-Kit que um aluno da Daxus instala no **próprio servidor** para gerenciar números de WhatsApp com bots de IA para pequenos negócios. Cada instalação é isolada, com o **próprio Supabase** (conversas), a **própria chave OpenAI** (inteligência) e o próprio Evolution API — a Daxus não hospeda nem opera nada disso. Ver `docs/visao-e-decisoes.md` para o porquê deste modelo.
+Kit que um aluno da Daxus instala no **próprio servidor** para gerenciar números de WhatsApp com bots de IA para pequenos negócios. Cada instalação é isolada: as conversas ficam no **banco do próprio servidor** (ou num Supabase do aluno, opcional), a IA usa a **própria chave OpenAI** e o Evolution API vem junto — a Daxus não hospeda nem opera nada disso. A equipe do aluno e o cliente final atendem pela mesma caixa de entrada (`/conversas` e `/portal/conversas`). Ver `docs/visao-e-decisoes.md` para o porquê deste modelo.
 
 ## Rodar em desenvolvimento (sem instalar nada além do Node)
 
@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Abra http://localhost:3000. Não precisa de Docker, Postgres nem Supabase: em dev o banco é embutido (PGlite em `./.data`) e a Evolution é simulada.
+Abra http://localhost:3000 (ou a porta que usar com `npm run dev -- -p 3100`; o Simulador funciona em qualquer porta). Não precisa de Docker, Postgres nem Supabase: em dev o banco é embutido (PGlite em `./.data`) e a Evolution é simulada.
 
 | Acesso | E-mail | Senha |
 |---|---|---|

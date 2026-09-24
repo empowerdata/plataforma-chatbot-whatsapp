@@ -47,10 +47,11 @@ Pronto — você caiu direto no seu painel.
 
 ## Depois de entrar
 
-Segue o checklist que aparece na primeira tela: conectar o Supabase (grátis),
-conectar a OpenAI (custa centavos por conversa), ler o QR code do primeiro
-WhatsApp, escolher um bot pronto. Tudo isso o próprio painel guia, com o
-passo a passo embutido em cada tela.
+Segue o checklist que aparece na primeira tela: conectar a OpenAI (custa
+centavos por conversa), ler o QR code do primeiro WhatsApp, escolher um bot
+pronto. Tudo isso o próprio painel guia, com o passo a passo embutido em cada
+tela. O banco de dados das conversas já vem pronto dentro do seu servidor —
+não precisa criar conta em lugar nenhum.
 
 ## Perguntas comuns
 
@@ -58,8 +59,12 @@ passo a passo embutido em cada tela.
 Daxus vendeu o produto pronto para você instalar, quem opera é você.
 
 **Quanto custa por mês?** Só o servidor, em torno de R$ 25 a R$ 30 (cobrado
-pela empresa do VPS, não pela Daxus). Fora isso, o Supabase é grátis e a
-OpenAI cobra só pelo uso, centavos por conversa.
+pela empresa do VPS, não pela Daxus). Fora isso, só a OpenAI, que cobra pelo
+uso: centavos por conversa.
+
+**Qual sistema escolho na empresa do VPS?** Ubuntu 24.04 LTS (validado na
+Hostinger). Se oferecerem um "gerenciador de Docker" ou "painel de
+aplicativos", pode deixar desmarcado — o instalador já cuida do Docker.
 
 **Se eu rodar o comando de novo, quebra alguma coisa?** Não. Ele percebe que
 já existe uma instalação e pergunta se você quer só reiniciar/atualizar.
