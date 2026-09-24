@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Ban, Bot, CheckCircle2, Clock, ShieldCheck, User } from "lucide-react";
+import { Ban, Bot, CheckCircle2, Clock, Pencil, ShieldCheck, Tag, User } from "lucide-react";
 import { Badge, Button, Card, EmptyState } from "@/components/ui/primitives";
 import { useDialogs } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { blockContactAction, pauseBotAction, resolveConversationAction } from "../actions";
+import { blockContactAction, pauseBotAction, resolveConversationAction, setCategoryAction } from "../actions";
 
 export type ThreadItem =
   | { kind: "meta"; id: string; text: string }
@@ -21,6 +21,7 @@ export type ConversaDetail = {
   status: "open" | "human" | "closed";
   needsHuman: boolean;
   handoffReason: string | null;
+  category: string | null;
   messageCount: number;
   botMessageCount: number;
   humanMessageCount: number;
@@ -47,7 +48,7 @@ function statusMeta(d: ConversaDetail): { tone: "warning" | "info" | "neutral" |
 export function ConversaClient({ detail }: { detail: ConversaDetail }) {
   const router = useRouter();
   const toast = useToast();
-  const { confirmDialog } = useDialogs();
+  const { confirmDialog, promptDialog } = useDialogs();
   const [busy, setBusy] = React.useState<string | null>(null);
 
   async function run(key: string, fn: () => Promise<{ error: string | null }>, okMessage: string) {
@@ -80,6 +81,12 @@ export function ConversaClient({ detail }: { detail: ConversaDetail }) {
       if (!ok) return;
     }
     void run("block", () => blockContactAction(detail.id, !detail.contact.isBlocked), detail.contact.isBlocked ? "Contato desbloqueado." : "Contato bloqueado.");
+  };
+
+  const handleEditCategory = async () => {
+    const value = await promptDialog("Categoria desta conversa:", detail.category ?? "", { title: "Corrigir categoria", placeholder: "ex.: Dúvida, Pedido, Reclamação…", confirmLabel: "Salvar" });
+    if (value === null) return; // cancelou
+    void run("category", () => setCategoryAction(detail.id, value), value.trim() ? "Categoria atualizada." : "Categoria removida.");
   };
 
   const badge = statusMeta(detail);
@@ -158,6 +165,11 @@ export function ConversaClient({ detail }: { detail: ConversaDetail }) {
             <Badge tone={badge.tone}>{badge.label}</Badge>
           </div>
           {detail.handoffReason ? <p className="text-xs text-warning">{detail.handoffReason}</p> : null}
+          <button type="button" onClick={handleEditCategory} disabled={busy === "category"} className="flex w-full items-center gap-1.5 rounded-md border border-dashed border-border-strong px-2 py-1.5 text-xs text-muted transition-colors hover:border-accent/50 hover:text-foreground">
+            <Tag className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1 truncate text-left">{detail.category ?? "sem categoria"}</span>
+            <Pencil className="h-3 w-3 shrink-0 text-subtle" />
+          </button>
           <div className="space-y-1 border-t border-border pt-3 text-xs text-muted">
             <div>{detail.messageCount} {detail.messageCount === 1 ? "mensagem" : "mensagens"} no total</div>
             <div>

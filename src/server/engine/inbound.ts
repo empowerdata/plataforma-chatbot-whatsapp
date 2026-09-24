@@ -272,6 +272,7 @@ export async function respondToContact(input: RespondInput): Promise<void> {
       handlers,
       temperature: config.model.temperature,
       maxOutputTokens: config.model.maxOutputTokens,
+      categoryOptions: config.categorization.enabled ? config.categorization.options : [],
       mock: { config, knowledge: knowledge.map((k) => k.content), lastUserText: queryText, isFirstTurn },
     });
 
@@ -364,6 +365,12 @@ function buildHandlers(d: HandlerDeps): ToolHandlers {
   const { number } = d.ctx;
   const handlers: ToolHandlers = {};
 
+  if (config.categorization.enabled && config.categorization.options.length) {
+    handlers.categorizar_conversa = async ({ categoria }) => {
+      await d.store.setConversationCategory(d.conversationId, categoria);
+      return "Categoria registrada.";
+    };
+  }
   if (config.actions.handoff.enabled) {
     handlers.chamar_atendente = async ({ motivo, resumo }) => {
       await d.store.setConversationStatus(d.conversationId, "human", true, motivo);

@@ -11,9 +11,15 @@ import { ActivityChart } from "./activity-chart";
 
 export const metadata = { title: "Visão geral" };
 
-export default async function OverviewPage() {
+const PERIODS = [7, 30, 90] as const;
+
+export default async function OverviewPage(props: PageProps<"/">) {
+  const searchParams = await props.searchParams;
+  const diasParam = Number(searchParams.dias);
+  const days = PERIODS.includes(diasParam as (typeof PERIODS)[number]) ? diasParam : 30;
+
   const { account } = await requireAccount();
-  const [overview, integrations, events] = await Promise.all([getOverview(account.id, 30), getIntegrationView(account.id), listEvents(account.id, 8)]);
+  const [overview, integrations, events] = await Promise.all([getOverview(account.id, days), getIntegrationView(account.id), listEvents(account.id, 8)]);
 
   const setup = [
     { done: integrations.supabase.configured || integrations.supabase.usingLocalDev, label: "Conectar o Supabase", href: "/integracoes" },
@@ -26,15 +32,31 @@ export default async function OverviewPage() {
   const disconnected = overview.numbers.filter((n) => n.status === "close").length;
 
   const kpis = [
-    { label: "Conversas (30 dias)", value: overview.totals.conversations, today: overview.today.conversations, icon: MessagesSquare },
-    { label: "Mensagens (30 dias)", value: overview.totals.messagesIn + overview.totals.messagesOut, today: overview.today.messagesIn + overview.today.messagesOut, icon: Bot },
+    { label: `Conversas (${days} dias)`, value: overview.totals.conversations, today: overview.today.conversations, icon: MessagesSquare },
+    { label: `Mensagens (${days} dias)`, value: overview.totals.messagesIn + overview.totals.messagesOut, today: overview.today.messagesIn + overview.today.messagesOut, icon: Bot },
     { label: "Novos contatos", value: overview.totals.newContacts, today: null, icon: UserPlus },
     { label: "Pedidos de humano", value: overview.totals.handoffs, today: overview.today.handoffs, icon: Hand },
   ];
 
   return (
     <div className="animate-fade-in-up">
-      <PageHeader title="Visão geral" description={`Atividade dos últimos 30 dias em ${account.name}.`} />
+      <PageHeader
+        title="Visão geral"
+        description={`Atividade dos últimos ${days} dias em ${account.name}.`}
+        actions={
+          <div className="flex items-center gap-1 rounded-md border border-border bg-surface-1 p-0.5">
+            {PERIODS.map((p) => (
+              <Link
+                key={p}
+                href={p === 30 ? "/" : `/?dias=${p}`}
+                className={`rounded px-2.5 py-1 text-xs transition-colors ${p === days ? "bg-surface-3 text-foreground" : "text-muted hover:text-foreground"}`}
+              >
+                {p} dias
+              </Link>
+            ))}
+          </div>
+        }
+      />
 
       {pendingSetup.length ? (
         <Card className="mb-6 border-accent/30 bg-accent-soft/40 p-4">

@@ -7,7 +7,9 @@ import type { BotConfig } from "@/shared/bot-config";
 
 export function ComportamentoTab({ config, patch }: { config: BotConfig; patch: (p: Record<string, unknown>) => void }) {
   const b = config.behavior;
+  const cat = config.categorization;
   const [kw, setKw] = React.useState("");
+  const [catInput, setCatInput] = React.useState("");
 
   function addKeyword() {
     const v = kw.trim();
@@ -21,6 +23,23 @@ export function ComportamentoTab({ config, patch }: { config: BotConfig; patch: 
   }
   function removeKeyword(v: string) {
     patch({ behavior: { handoffKeywords: b.handoffKeywords.filter((k) => k !== v) } });
+  }
+
+  function addCategory() {
+    const v = catInput.trim();
+    if (!v || cat.options.length >= 12) {
+      setCatInput("");
+      return;
+    }
+    if (cat.options.includes(v)) {
+      setCatInput("");
+      return;
+    }
+    patch({ categorization: { options: [...cat.options, v] } });
+    setCatInput("");
+  }
+  function removeCategory(v: string) {
+    patch({ categorization: { options: cat.options.filter((c) => c !== v) } });
   }
 
   return (
@@ -79,6 +98,39 @@ export function ComportamentoTab({ config, patch }: { config: BotConfig; patch: 
         <Switch checked={b.replyToAudio} onChange={(v) => patch({ behavior: { replyToAudio: v } })} label="Responder a áudios" />
         <Switch checked={b.replyToImages} onChange={(v) => patch({ behavior: { replyToImages: v } })} label="Responder a imagens" />
         <Switch checked={b.ignoreGroups} onChange={(v) => patch({ behavior: { ignoreGroups: v } })} label="Ignorar grupos" />
+      </div>
+
+      <div className="border-t border-border pt-5">
+        <Switch checked={cat.enabled} onChange={(v) => patch({ categorization: { enabled: v } })} label="Categorizar as conversas automaticamente" />
+        <p className="mt-1 text-xs text-subtle">O próprio bot marca o assunto de cada conversa (o cliente nunca vê isso). Dá para corrigir na mão na tela da conversa, e filtrar por categoria na lista.</p>
+        {cat.enabled ? (
+          <Field label="Categorias" hint="Até 12. O bot escolhe sempre uma dessas." className="mt-3">
+            <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-surface-1 p-2">
+              {cat.options.map((c) => (
+                <span key={c} className="inline-flex items-center gap-1 rounded-full bg-surface-3 px-2 py-0.5 text-xs text-foreground">
+                  {c}
+                  <button type="button" onClick={() => removeCategory(c)} aria-label={`Remover ${c}`} className="text-muted hover:text-danger">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+              {cat.options.length < 12 ? (
+                <input
+                  value={catInput}
+                  onChange={(e) => setCatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addCategory();
+                    }
+                  }}
+                  placeholder="digite e Enter…"
+                  className="min-w-[120px] flex-1 bg-transparent px-1 py-0.5 text-sm text-foreground outline-none placeholder:text-subtle"
+                />
+              ) : null}
+            </div>
+          </Field>
+        ) : null}
       </div>
     </div>
   );

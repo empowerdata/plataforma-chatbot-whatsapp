@@ -19,6 +19,8 @@ export type PlaygroundResult = {
   latencyMs: number;
   simulated: boolean;
   systemPrompt: string;
+  /** Categoria que o bot atribuiu a esta conversa de teste, se a ferramenta foi chamada. */
+  category: string | null;
 };
 
 /**
@@ -47,7 +49,15 @@ export async function runPlaygroundTurn(input: {
   }
 
   const toolCalls: { name: string; input: unknown }[] = [];
+  let category: string | null = null;
   const handlers: ToolHandlers = {};
+  if (config.categorization.enabled && config.categorization.options.length) {
+    handlers.categorizar_conversa = async ({ categoria }) => {
+      category = categoria;
+      toolCalls.push({ name: "categorizar_conversa", input: { categoria } });
+      return "Categoria registrada.";
+    };
+  }
   if (config.actions.handoff.enabled) {
     handlers.chamar_atendente = async (i) => {
       toolCalls.push({ name: "chamar_atendente", input: i });
@@ -78,6 +88,7 @@ export async function runPlaygroundTurn(input: {
     handlers,
     temperature: config.model.temperature,
     maxOutputTokens: config.model.maxOutputTokens,
+    categoryOptions: config.categorization.enabled ? config.categorization.options : [],
     mock: { config, knowledge: knowledge.map((k) => k.content), lastUserText: input.userText, isFirstTurn: input.history.length === 0 },
   });
 
@@ -90,5 +101,6 @@ export async function runPlaygroundTurn(input: {
     latencyMs: result.latencyMs,
     simulated: result.simulated,
     systemPrompt: system,
+    category,
   };
 }

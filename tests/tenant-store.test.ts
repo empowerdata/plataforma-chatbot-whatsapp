@@ -139,6 +139,28 @@ describe("TenantStore no PGlite (mesmo SQL do Supabase)", () => {
     expect(await store.purgeOldConversations(30)).toEqual({ conversations: 0, contacts: 0 });
   });
 
+  it("categoria da conversa: grava, filtra e lista as em uso", async () => {
+    const CAT_NUMBER = "55555555-5555-4555-8555-555555555555";
+    const c1 = await store.upsertContact({ numberId: CAT_NUMBER, jid: "5511911111111@s.whatsapp.net" });
+    const { conversation: conv1 } = await store.getOrCreateConversation({ numberId: CAT_NUMBER, contactId: c1.id, timeoutHours: 12 });
+    const c2 = await store.upsertContact({ numberId: CAT_NUMBER, jid: "5511922222222@s.whatsapp.net" });
+    const { conversation: conv2 } = await store.getOrCreateConversation({ numberId: CAT_NUMBER, contactId: c2.id, timeoutHours: 12 });
+
+    expect((await store.getConversation(conv1.id))?.category).toBeNull();
+    await store.setConversationCategory(conv1.id, "Pedido/orçamento");
+    await store.setConversationCategory(conv2.id, "Dúvida");
+    expect((await store.getConversation(conv1.id))?.category).toBe("Pedido/orçamento");
+
+    expect(await store.listCategoriesInUse([CAT_NUMBER])).toEqual(["Dúvida", "Pedido/orçamento"]);
+
+    const onlyPedido = await store.listConversations({ numberIds: [CAT_NUMBER], category: "Pedido/orçamento" });
+    expect(onlyPedido.map((c) => c.id)).toEqual([conv1.id]);
+
+    // Corrigir na mão (limpar) também funciona.
+    await store.setConversationCategory(conv1.id, null);
+    expect((await store.getConversation(conv1.id))?.category).toBeNull();
+  });
+
   it("estatísticas diárias", async () => {
     const day = new Date("2026-09-21T12:00:00Z");
     await store.bumpDailyStat(NUMBER, day, { messages_in: 1, conversations: 1 });

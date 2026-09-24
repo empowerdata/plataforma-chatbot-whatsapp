@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getAccountOrThrow } from "@/server/auth/guards";
-import { resolveConversation, setBotPausedForContact, setContactBlocked } from "@/server/services/conversations";
+import { resolveConversation, setBotPausedForContact, setContactBlocked, setConversationCategory } from "@/server/services/conversations";
 import { TenantNotConfigured } from "@/server/tenant";
 
 type Result = { error: string | null };
@@ -56,6 +56,19 @@ export async function blockContactAction(id: string, blocked: boolean): Promise<
     assertId(id);
     const { account } = await getAccountOrThrow();
     await setContactBlocked(account.id, id, blocked === true);
+    revalidate(id);
+    return { error: null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Corrige a categoria na mão; `null` limpa (volta para "sem categoria"). */
+export async function setCategoryAction(id: string, category: string | null): Promise<Result> {
+  try {
+    assertId(id);
+    const { account } = await getAccountOrThrow();
+    await setConversationCategory(account.id, id, category && category.trim() ? category.trim().slice(0, 40) : null);
     revalidate(id);
     return { error: null };
   } catch (err) {

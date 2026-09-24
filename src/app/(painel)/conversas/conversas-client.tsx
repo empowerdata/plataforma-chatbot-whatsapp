@@ -17,6 +17,7 @@ export type ConversationRow = {
   preview: string | null;
   status: "open" | "human" | "closed";
   needsHuman: boolean;
+  category: string | null;
   /** Já formatado no servidor (ex.: "há 5 min"). */
   lastMessageAt: string;
   messageCount: number;
@@ -31,19 +32,34 @@ function badgeFor(c: ConversationRow): { tone: "warning" | "info" | "neutral" | 
   return { tone: "success", label: "bot" };
 }
 
-export function ConversasClient({ numbers, numberId, needsHuman, rows }: { numbers: NumberOption[]; numberId: string | null; needsHuman: boolean; rows: ConversationRow[] }) {
+export function ConversasClient({
+  numbers,
+  numberId,
+  needsHuman,
+  category,
+  categories,
+  rows,
+}: {
+  numbers: NumberOption[];
+  numberId: string | null;
+  needsHuman: boolean;
+  category: string | null;
+  categories: string[];
+  rows: ConversationRow[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
 
-  const apply = (next: { numberId: string | null; needsHuman: boolean }) => {
+  const apply = (next: { numberId: string | null; needsHuman: boolean; category: string | null }) => {
     const qs = new URLSearchParams();
     if (next.numberId) qs.set("numero", next.numberId);
     if (next.needsHuman) qs.set("humano", "1");
+    if (next.category) qs.set("categoria", next.category);
     const search = qs.toString();
     startTransition(() => router.replace(search ? `/conversas?${search}` : "/conversas"));
   };
 
-  const filtered = numberId !== null || needsHuman;
+  const filtered = numberId !== null || needsHuman || category !== null;
 
   if (numbers.length === 0) {
     return (
@@ -63,7 +79,7 @@ export function ConversasClient({ numbers, numberId, needsHuman, rows }: { numbe
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Select value={numberId ?? ""} onChange={(e) => apply({ numberId: e.target.value || null, needsHuman })} className="w-56" aria-label="Filtrar por número">
+        <Select value={numberId ?? ""} onChange={(e) => apply({ numberId: e.target.value || null, needsHuman, category })} className="w-56" aria-label="Filtrar por número">
           <option value="">Todos os números</option>
           {numbers.map((n) => (
             <option key={n.id} value={n.id}>
@@ -71,11 +87,21 @@ export function ConversasClient({ numbers, numberId, needsHuman, rows }: { numbe
             </option>
           ))}
         </Select>
+        {categories.length > 0 ? (
+          <Select value={category ?? ""} onChange={(e) => apply({ numberId, needsHuman, category: e.target.value || null })} className="w-48" aria-label="Filtrar por categoria">
+            <option value="">Todas as categorias</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+        ) : null}
         <Button
           type="button"
           variant="outline"
           aria-pressed={needsHuman}
-          onClick={() => apply({ numberId, needsHuman: !needsHuman })}
+          onClick={() => apply({ numberId, needsHuman: !needsHuman, category })}
           className={cn(needsHuman && "border-warning/40 bg-warning-soft text-warning hover:bg-warning-soft")}
         >
           <Hand className="h-3.5 w-3.5" /> Precisa de humano
@@ -94,7 +120,7 @@ export function ConversasClient({ numbers, numberId, needsHuman, rows }: { numbe
             title="Nenhuma conversa com esses filtros"
             description="Tente outro número ou desligue o filtro de atendimento humano."
             action={
-              <Button variant="secondary" size="sm" onClick={() => apply({ numberId: null, needsHuman: false })}>
+              <Button variant="secondary" size="sm" onClick={() => apply({ numberId: null, needsHuman: false, category: null })}>
                 Limpar filtros
               </Button>
             }
@@ -113,6 +139,7 @@ export function ConversasClient({ numbers, numberId, needsHuman, rows }: { numbe
                     <span className="truncate text-sm font-medium text-foreground">{c.title}</span>
                     {c.phone ? <span className="text-xs text-muted">{c.phone}</span> : null}
                     <span className="rounded border border-border bg-surface-2 px-1.5 text-[10px] leading-4 text-muted">{c.numberLabel}</span>
+                    {c.category ? <Badge tone="neutral">{c.category}</Badge> : null}
                   </div>
                   <div className="mt-0.5 truncate text-xs text-muted">{c.preview ?? "Sem mensagens ainda."}</div>
                 </div>

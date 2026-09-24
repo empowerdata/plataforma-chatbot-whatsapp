@@ -17,6 +17,7 @@ type PlaygroundResult = {
   latencyMs: number;
   simulated: boolean;
   systemPrompt: string;
+  category: string | null;
 };
 
 type TurnMeta = {
@@ -26,6 +27,7 @@ type TurnMeta = {
   latencyMs: number;
   usage: { inputTokens: number; outputTokens: number };
   simulated: boolean;
+  category: string | null;
 };
 
 type ChatTurn = { role: "user" | "assistant"; bubbles: string[]; meta?: TurnMeta };
@@ -65,7 +67,7 @@ export function Playground({ botId, config }: { botId: string; config: BotConfig
         {
           role: "assistant",
           bubbles: result.bubbles,
-          meta: { toolCalls: result.toolCalls, knowledge: result.knowledge, model: result.model, latencyMs: result.latencyMs, usage: result.usage, simulated: result.simulated },
+          meta: { toolCalls: result.toolCalls, knowledge: result.knowledge, model: result.model, latencyMs: result.latencyMs, usage: result.usage, simulated: result.simulated, category: result.category },
         },
       ]);
     } catch (err) {
@@ -120,6 +122,7 @@ export function Playground({ botId, config }: { botId: string; config: BotConfig
                     ) : null}
                     <div className="flex flex-wrap items-center gap-2 text-[10px] text-subtle">
                       {t.meta.simulated ? <Badge tone="warning">IA simulada — configure a chave OpenAI em Integrações</Badge> : null}
+                      {t.meta.category ? <Badge tone="info">categoria: {t.meta.category}</Badge> : null}
                       <span>{t.meta.model}</span>
                       <span>{t.meta.latencyMs} ms</span>
                       <span>{formatNumber(t.meta.usage.inputTokens + t.meta.usage.outputTokens)} tokens</span>

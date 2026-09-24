@@ -9,12 +9,14 @@ import type { BotConfig } from "@/shared/bot-config";
  * simulado (sem chave), para o produto rodar de ponta a ponta em dev.
  */
 
-export type ToolName = "chamar_atendente" | "enviar_cardapio" | "enviar_localizacao";
+export type ToolName = "chamar_atendente" | "enviar_cardapio" | "enviar_localizacao" | "categorizar_conversa";
 
 export type ToolHandlers = {
   chamar_atendente?: (input: { motivo: string; resumo: string }) => Promise<string>;
   enviar_cardapio?: () => Promise<string>;
   enviar_localizacao?: () => Promise<string>;
+  /** Lista de categorias válidas fica em `categoryOptions` (passada a `runLlmTurn`), não aqui. */
+  categorizar_conversa?: (input: { categoria: string }) => Promise<string>;
 };
 
 export type LlmTurnInput = {
@@ -25,6 +27,8 @@ export type LlmTurnInput = {
   handlers: ToolHandlers;
   temperature: number;
   maxOutputTokens: number;
+  /** Categorias válidas para a ferramenta categorizar_conversa, se o handler estiver presente. */
+  categoryOptions?: string[];
   /** Só usado pelo backend simulado. */
   mock?: { config: BotConfig; knowledge: string[]; lastUserText: string; isFirstTurn: boolean };
 };
@@ -38,8 +42,15 @@ export type LlmTurnResult = {
   simulated: boolean;
 };
 
-export function buildTools(handlers: ToolHandlers): ToolSet {
+export function buildTools(handlers: ToolHandlers, categoryOptions: string[] = []): ToolSet {
   const tools: ToolSet = {};
+  if (handlers.categorizar_conversa && categoryOptions.length) {
+    tools.categorizar_conversa = tool({
+      description: `Marca o assunto principal desta conversa, para organização interna (o cliente nunca vê isso). Chame uma vez, assim que der para saber do que se trata, e de novo se o assunto mudar. Categorias disponíveis: ${categoryOptions.join(", ")}.`,
+      inputSchema: z.object({ categoria: z.enum(categoryOptions as [string, ...string[]]) }),
+      execute: async (input) => handlers.categorizar_conversa!(input),
+    });
+  }
   if (handlers.chamar_atendente) {
     tools.chamar_atendente = tool({
       description: "Transfere a conversa para um atendente humano da equipe. Use quando o cliente pedir, quando não conseguir resolver, ou ao concluir um pedido/agendamento.",
@@ -75,7 +86,7 @@ export async function runLlmTurn(input: LlmTurnInput): Promise<LlmTurnResult> {
     model: input.model,
     instructions: input.system,
     messages: input.messages,
-    tools: buildTools(input.handlers),
+    tools: buildTools(input.handlers, input.categoryOptions),
     stopWhen: isStepCount(4),
     temperature: input.temperature,
     maxOutputTokens: input.maxOutputTokens,

@@ -120,3 +120,13 @@ insert into chatbot.meta (key, value)
 values ('schema_version', '1')
 on conflict (key) do update set value = excluded.value, updated_at = now();
 `;
+
+/** v2: categoria da conversa (o bot categoriza sozinho, dá para corrigir na mão). */
+export const TENANT_SCHEMA_V2 = `
+alter table chatbot.conversations add column if not exists category text;
+create index if not exists conversations_category_idx on chatbot.conversations (number_id, category) where category is not null;
+
+insert into chatbot.meta (key, value)
+values ('schema_version', '2')
+on conflict (key) do update set value = excluded.value, updated_at = now();
+`;

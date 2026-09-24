@@ -115,6 +115,13 @@ export const botConfigSchema = z.object({
         .prefault({}),
     })
     .prefault({}),
+  /** Categorias que o próprio bot atribui à conversa (dá para filtrar e, depois, virar um Kanban). */
+  categorization: z
+    .object({
+      enabled: z.boolean().default(true),
+      options: z.array(z.string().max(40)).max(12).default(["Dúvida", "Pedido/orçamento", "Reclamação", "Elogio", "Outro"]),
+    })
+    .prefault({}),
   model: z
     .object({
       /** Vazio = modelo padrão da integração da conta. */

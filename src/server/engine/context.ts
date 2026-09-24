@@ -64,6 +64,7 @@ export function buildSystemPrompt(input: PromptInput): string {
     if (input.tools.includes("chamar_atendente")) t.push("- chamar_atendente: quando o cliente pedir para falar com uma pessoa, quando estiver irritado, quando você não conseguir resolver, ou quando concluir um pedido/agendamento que a equipe precisa confirmar.");
     if (input.tools.includes("enviar_cardapio")) t.push(`- enviar_cardapio: quando o cliente pedir o ${config.actions.sendMenu.label || "cardápio"} ou quiser ver as opções.`);
     if (input.tools.includes("enviar_localizacao")) t.push("- enviar_localizacao: quando o cliente perguntar onde fica ou como chegar.");
+    if (input.tools.includes("categorizar_conversa")) t.push("- categorizar_conversa: assim que der para saber do que se trata a conversa, marque a categoria dela (o cliente nunca vê isso). Chame de novo se o assunto mudar bastante.");
     sections.push(`## Ferramentas\nVocê tem ferramentas. Use-as nestes casos:\n${t.join("\n")}\nDepois de usar uma ferramenta, responda ao cliente em uma frase curta.`);
   }
 

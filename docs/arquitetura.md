@@ -52,7 +52,9 @@ Fluxo de `messages.upsert`:
 2. `fromMe` com id desconhecido = **humano respondeu pelo celular** → salva como `human`, pausa o bot para o contato por N horas, conversa vira `human`.
 3. Mensagem do cliente → `upsertContact`, `getOrCreateConversation` (nova conversa após 12 h de silêncio), transcreve áudio se houver IA, salva, contabiliza.
 4. Se o bot deve responder → `scheduler.schedule(numero:contato, debounce)`; várias mensagens seguidas viram uma rodada só.
-5. `respondToContact`: pega o lote pendente, faz RAG (`embed` + `<=>` no pgvector; sem chave OpenAI cai para busca textual), monta o prompt (`context.ts`), roda `runLlmTurn` (AI SDK com tools `chamar_atendente`, `enviar_cardapio`, `enviar_localizacao`; sem chave usa o backend simulado), divide em bolhas (`reply.ts`), envia com "digitando", salva mensagens e estatísticas.
+5. `respondToContact`: pega o lote pendente, faz RAG (`embed` + `<=>` no pgvector; sem chave OpenAI cai para busca textual), monta o prompt (`context.ts`), roda `runLlmTurn` (AI SDK com tools `chamar_atendente`, `enviar_cardapio`, `enviar_localizacao`, `categorizar_conversa`; sem chave usa o backend simulado, que não categoriza), divide em bolhas (`reply.ts`), envia com "digitando", salva mensagens e estatísticas.
+
+O bot categoriza a conversa sozinho (campo `chatbot.conversations.category`, schema v2), escolhendo entre a lista configurável por bot (`config.categorization.options`, até 12). Dá para corrigir na mão na tela da conversa, filtrar a lista por categoria, e testar no Playground do Studio sem precisar de WhatsApp nenhum.
 6. Fora do horário: manda a mensagem de fora de horário uma vez por conversa e continua respondendo.
 
 Runtime hoje é **em processo** (memória). Para várias réplicas, trocar `MemoryScheduler` por BullMQ/Redis mantendo a interface `Scheduler`.

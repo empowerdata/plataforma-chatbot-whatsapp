@@ -32,6 +32,7 @@ export type Conversation = {
   bot_message_count: number;
   human_message_count: number;
   summary: string | null;
+  category: string | null;
   created_at: Date;
   closed_at: Date | null;
 };
@@ -172,7 +173,22 @@ export class TenantStore {
     );
   }
 
-  async listConversations(input: { numberId?: string; numberIds?: string[]; needsHuman?: boolean; limit?: number; offset?: number }): Promise<(Conversation & { contact_phone: string | null; contact_name: string | null; contact_push_name: string | null })[]> {
+  /** `null` limpa a categoria (útil para corrigir um erro do bot na mão). */
+  async setConversationCategory(id: string, category: string | null): Promise<void> {
+    await this.db.query(`update chatbot.conversations set category = $2 where id = $1`, [id, category]);
+  }
+
+  /** Categorias em uso entre os números informados, para alimentar o filtro da lista. */
+  async listCategoriesInUse(numberIds: string[]): Promise<string[]> {
+    if (!numberIds.length) return [];
+    const rows = await this.db.query<{ category: string }>(
+      `select distinct category from chatbot.conversations where number_id = any($1::uuid[]) and category is not null order by category`,
+      [numberIds],
+    );
+    return rows.map((r) => r.category);
+  }
+
+  async listConversations(input: { numberId?: string; numberIds?: string[]; needsHuman?: boolean; category?: string; limit?: number; offset?: number }): Promise<(Conversation & { contact_phone: string | null; contact_name: string | null; contact_push_name: string | null })[]> {
     const where: string[] = [];
     const params: unknown[] = [];
     if (input.numberId) {
@@ -183,6 +199,10 @@ export class TenantStore {
       where.push(`c.number_id = any($${params.length}::uuid[])`);
     }
     if (input.needsHuman) where.push(`c.needs_human = true`);
+    if (input.category) {
+      params.push(input.category);
+      where.push(`c.category = $${params.length}`);
+    }
     params.push(input.limit ?? 50);
     const limitIdx = params.length;
     params.push(input.offset ?? 0);

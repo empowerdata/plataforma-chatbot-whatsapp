@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Database } from "lucide-react";
 import { requireAccount } from "@/server/auth/guards";
 import { listNumbers } from "@/server/services/numbers";
-import { listConversations } from "@/server/services/conversations";
+import { listConversations, listUsedCategories } from "@/server/services/conversations";
 import { TenantNotConfigured } from "@/server/tenant";
 import { EmptyState, PageHeader } from "@/components/ui/primitives";
 import { formatPhone, formatRelative } from "@/lib/utils";
@@ -19,11 +19,14 @@ export default async function ConversasPage(props: PageProps<"/conversas">) {
   const numeroParam = typeof searchParams.numero === "string" ? searchParams.numero : undefined;
   const numberId = numeroParam && numbers.some((n) => n.number.id === numeroParam) ? numeroParam : undefined;
   const needsHuman = searchParams.humano === "1";
+  const category = typeof searchParams.categoria === "string" ? searchParams.categoria : undefined;
 
   let rows: ConversationRow[] = [];
+  let categories: string[] = [];
   let problem: { title: string; description: string } | null = null;
   try {
-    const items = await listConversations(account.id, { numberId, needsHuman, limit: 100 });
+    const [items, cats] = await Promise.all([listConversations(account.id, { numberId, needsHuman, category, limit: 100 }), listUsedCategories(account.id)]);
+    categories = cats;
     rows = items.map((c) => {
       const name = c.contact_name ?? c.contact_push_name ?? null;
       return {
@@ -34,6 +37,7 @@ export default async function ConversasPage(props: PageProps<"/conversas">) {
         preview: c.last_message_preview,
         status: c.status,
         needsHuman: c.needs_human,
+        category: c.category,
         lastMessageAt: formatRelative(c.last_message_at),
         messageCount: Number(c.message_count ?? 0),
       };
@@ -62,7 +66,7 @@ export default async function ConversasPage(props: PageProps<"/conversas">) {
           }
         />
       ) : (
-        <ConversasClient numbers={numbers.map((n) => ({ id: n.number.id, label: n.number.label }))} numberId={numberId ?? null} needsHuman={needsHuman} rows={rows} />
+        <ConversasClient numbers={numbers.map((n) => ({ id: n.number.id, label: n.number.label }))} numberId={numberId ?? null} needsHuman={needsHuman} category={category ?? null} categories={categories} rows={rows} />
       )}
     </div>
   );

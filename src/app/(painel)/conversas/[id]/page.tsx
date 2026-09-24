@@ -61,6 +61,7 @@ const TOOL_LABELS: Record<string, string> = {
   chamar_atendente: "chamou a equipe",
   enviar_cardapio: "enviou o cardápio",
   enviar_localizacao: "enviou a localização",
+  categorizar_conversa: "categorizou",
 };
 
 function toDate(v: Date | string | null | undefined): Date | null {
@@ -171,6 +172,7 @@ function toDto(d: ConversationDetail): ConversaDetail {
     status: c.status,
     needsHuman: c.needs_human,
     handoffReason: c.handoff_reason,
+    category: c.category,
     messageCount: Number(c.message_count ?? 0),
     botMessageCount: Number(c.bot_message_count ?? 0),
     humanMessageCount: Number(c.human_message_count ?? 0),

@@ -15,13 +15,25 @@ async function accountNumbers(accountId: string) {
   return db.select({ id: schema.numbers.id, label: schema.numbers.label }).from(schema.numbers).where(eq(schema.numbers.accountId, accountId));
 }
 
-export async function listConversations(accountId: string, opts: { numberId?: string; needsHuman?: boolean; limit?: number; offset?: number } = {}): Promise<ConversationListItem[]> {
+export async function listConversations(accountId: string, opts: { numberId?: string; needsHuman?: boolean; category?: string; limit?: number; offset?: number } = {}): Promise<ConversationListItem[]> {
   const nums = await accountNumbers(accountId);
   if (!nums.length) return [];
   const labels = new Map(nums.map((n) => [n.id, n.label]));
   const store = await getTenantStore(accountId);
-  const rows = await store.listConversations({ numberId: opts.numberId, numberIds: opts.numberId ? undefined : nums.map((n) => n.id), needsHuman: opts.needsHuman, limit: opts.limit, offset: opts.offset });
+  const rows = await store.listConversations({ numberId: opts.numberId, numberIds: opts.numberId ? undefined : nums.map((n) => n.id), needsHuman: opts.needsHuman, category: opts.category, limit: opts.limit, offset: opts.offset });
   return rows.map((r) => ({ ...r, numberLabel: labels.get(r.number_id) ?? "—" }));
+}
+
+/** Categorias em uso pela conta, para alimentar o filtro da lista. */
+export async function listUsedCategories(accountId: string): Promise<string[]> {
+  const nums = await accountNumbers(accountId);
+  if (!nums.length) return [];
+  try {
+    const store = await getTenantStore(accountId);
+    return await store.listCategoriesInUse(nums.map((n) => n.id));
+  } catch {
+    return [];
+  }
 }
 
 export type ConversationDetail = { conversation: Conversation; contact: Contact; messages: MessageRow[]; numberLabel: string };
@@ -59,4 +71,11 @@ export async function setContactBlocked(accountId: string, conversationId: strin
   if (!detail) throw new Error("Conversa não encontrada.");
   const store = await getTenantStore(accountId);
   await store.setContactBlocked(detail.contact.id, blocked);
+}
+
+export async function setConversationCategory(accountId: string, conversationId: string, category: string | null): Promise<void> {
+  const detail = await getConversationDetail(accountId, conversationId);
+  if (!detail) throw new Error("Conversa não encontrada.");
+  const store = await getTenantStore(accountId);
+  await store.setConversationCategory(conversationId, category);
 }
