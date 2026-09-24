@@ -199,6 +199,31 @@ por ferramenta). Isso deixa o comportamento mais natural e mais fácil de
 estender — uma nova ferramenta é só mais uma entrada nesse mesmo padrão
 (`src/server/engine/llm.ts`).
 
+### Visão em imagens: a foto nunca é gravada no banco do aluno
+
+O bot já enxergava áudio (transcrição) desde antes; agora também enxerga
+imagem, do mesmo jeito: quando chega uma foto, o painel baixa da Evolution e
+guarda os bytes numa memória de curtíssimo prazo do próprio processo
+(`src/server/engine/media-cache.ts`, ~10 minutos, uso único), só para o turno
+de resposta — que roda alguns segundos depois, após o debounce — conseguir
+mandar a imagem de verdade para o modelo (os modelos já usados, GPT-5.4 e
+GPT-4.1, enxergam imagem nativamente, não precisou de modelo novo nem de
+infraestrutura nova). A imagem em si **nunca é gravada no Supabase do
+aluno** — só o texto (legenda, se tiver) fica no histórico. Isso é
+consistente com a mesma lógica da retenção de 30 dias: menos dado sensível
+do cliente final guardado, menos custo de armazenamento. Efeito colateral
+aceito: se o servidor reiniciar bem no meio da janela entre receber a foto e
+responder, a imagem se perde e o bot responde só pelo texto — degrada bem,
+não quebra o atendimento.
+
+Cada bot tem um interruptor próprio para isso (`Responder a imagens`, igual
+ao de áudio) — vale desligar se o custo extra de tokens de imagem não fizer
+sentido para aquele negócio. Fotos antigas no histórico da conversa nunca
+são reanalisadas: só a que acabou de chegar é "vista" de verdade, o resto
+vira só o resumo em texto — evita gastar tokens de novo a cada rodada. Não é
+testável pelo Simulador (que é só texto); precisa de um WhatsApp real
+conectado.
+
 ### Retenção de 30 dias, mas as estatísticas ficam
 
 Conversas e mensagens sem atividade há mais de 30 dias (configurável) são
@@ -226,6 +251,7 @@ reverificar depois de mexer no código relacionado).
 | Motor de atendimento ponta a ponta (webhook → resposta) | sim (Evolution simulada) | sim |
 | Pausa quando o dono responde pelo celular | sim | sim |
 | Categorização automática das conversas | sim | sim |
+| Visão em imagens (o bot enxerga a foto, não só um aviso) | sim | não — precisa de WhatsApp real, o Simulador é só texto |
 | Filtro de conversas por categoria/número/humano | sim | sim |
 | Filtro de período na Visão Geral (7/30/90 dias) | não | sim |
 | Limpeza automática de conversas antigas (30 dias) | sim | não (roda uma vez por dia, difícil de observar ao vivo) |

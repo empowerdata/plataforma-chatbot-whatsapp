@@ -1,6 +1,6 @@
 import "server-only";
 import { eq } from "drizzle-orm";
-import { embed, transcribe, type ModelMessage } from "ai";
+import { embed, transcribe, type ModelMessage, type UserContent } from "ai";
 import { getDb, schema } from "../db";
 import type { Bot, EvolutionNode, NumberRow } from "../db/schema";
 import { getTenantStore } from "../tenant/registry";
@@ -15,6 +15,7 @@ import { getScheduler } from "./scheduler";
 import { runLlmTurn, type ToolHandlers } from "./llm";
 import { sleep, splitBubbles, typingDelayMs } from "./reply";
 import { markSent, wasSentByUs } from "./sent-cache";
+import { cacheImage, takeImage } from "./media-cache";
 import { applyVariables, type BotConfig } from "@/shared/bot-config";
 import { env } from "../env";
 
@@ -147,6 +148,11 @@ async function handleInbound(ctx: NumberContext, msg: InboundMessage): Promise<v
       return null;
     });
   }
+  if (msg.type === "image" && (ctx.bot?.config.behavior.replyToImages ?? true)) {
+    await cacheInboundImage(ctx, msg).catch((err) => {
+      void logEvent({ accountId: number.accountId, numberId: number.id, level: "warn", type: "vision", message: `Falha ao baixar imagem: ${errMsg(err)}` });
+    });
+  }
 
   await store.insertMessage({
     numberId: number.id,
@@ -188,6 +194,13 @@ async function transcribeInbound(ctx: NumberContext, msg: InboundMessage): Promi
   if (!media) return null;
   const res = await transcribe({ model, audio: Buffer.from(media.base64, "base64") });
   return res.text?.trim() || null;
+}
+
+/** Baixa a imagem e guarda no cache curto para o turno de resposta poder "ver" (ver media-cache.ts). */
+async function cacheInboundImage(ctx: NumberContext, msg: InboundMessage): Promise<void> {
+  const media = await getEvolutionClient(ctx.node).getMedia(ctx.number.instanceName, msg.raw);
+  if (!media) return;
+  cacheImage(ctx.number.id, msg.externalId, media.base64, media.mimeType);
 }
 
 // ---------------------------------------------------------------------------
@@ -261,7 +274,7 @@ export async function respondToContact(input: RespondInput): Promise<void> {
     const handlers = buildHandlers({ ctx, store, client, contact: { id: contact.id, name: contactName, phone: input.phone }, conversationId: conversation.id, eff, knowledgeCount: knowledge.length });
     const tools = Object.keys(handlers);
     const system = buildSystemPrompt({ config, variables: number.variables, contactName, knowledge: knowledge.map((k) => k.content), tools });
-    const messages = toModelMessages(recent);
+    const messages = toModelMessages(recent, number.id);
     const isFirstTurn = !recent.some((m) => m.sender !== "contact");
 
     const result = await runLlmTurn({
@@ -311,14 +324,28 @@ export async function respondToContact(input: RespondInput): Promise<void> {
   }
 }
 
-export function toModelMessages(rows: MessageRow[]): ModelMessage[] {
+/** Conteúdo de uma mensagem do usuário sempre como array, para poder anexar partes (texto/imagem). */
+function asContentParts(content: UserContent): Exclude<UserContent, string> {
+  return typeof content === "string" ? [{ type: "text", text: content }] : content;
+}
+
+export function toModelMessages(rows: MessageRow[], numberId: string): ModelMessage[] {
   const out: ModelMessage[] = [];
   for (const m of rows) {
     if (m.sender === "system") continue;
     if (m.sender === "contact") {
+      const image = m.type === "image" ? takeImage(numberId, m.external_id) : null;
+      const last = out[out.length - 1];
+      if (image) {
+        const caption = (m.text ?? "").trim();
+        const parts: Exclude<UserContent, string> = [{ type: "file", data: image.base64, mediaType: image.mimeType }];
+        if (caption) parts.push({ type: "text", text: caption });
+        if (last && last.role === "user") last.content = [...asContentParts(last.content), ...parts];
+        else out.push({ role: "user", content: parts });
+        continue;
+      }
       const text = describeInbound(m);
       if (!text) continue;
-      const last = out[out.length - 1];
       if (last && last.role === "user" && typeof last.content === "string") last.content = last.content + "\n" + text;
       else out.push({ role: "user", content: text });
     } else {

@@ -23,9 +23,10 @@ Para o histórico de decisões e o porquê de cada uma, ver
 - **Engine**: debounce por contato, RAG com pgvector (ou busca textual sem
   chave), ferramentas (atendente humano, cardápio, localização,
   categorização automática da conversa), pausa quando humano responde,
-  horário de funcionamento, transcrição de áudio, estatísticas diárias,
-  filtro de período (7/30/90 dias), limpeza automática de conversas com mais
-  de 30 dias.
+  horário de funcionamento, transcrição de áudio, **visão em imagens** (o bot
+  enxerga a foto que o cliente manda, não só o aviso "recebi uma imagem"),
+  estatísticas diárias, filtro de período (7/30/90 dias), limpeza automática
+  de conversas com mais de 30 dias.
 - **Distribuição**: instalação de conta única via VPS (`infra/`, caminho
   principal, ~R$ 30/mês) ou via Render (`render.yaml`, mais caro, sem
   terminal). Nenhuma delas depende de infraestrutura operada pela Daxus.
@@ -51,7 +52,6 @@ qualquer divulgação para alunos.
 
 ## Fase 2 — qualidade
 
-- Imagens com visão (o bot entende a foto).
 - Resumo automático da conversa (campo `summary`, ainda não usado).
 - Custo estimado por conversa/número no painel (tokens × preço do modelo).
 - Alertas por e-mail/WhatsApp quando um número cai (hoje só evento no painel).

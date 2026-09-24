@@ -13,6 +13,9 @@ import { buildSystemPrompt } from "@/server/engine/context";
 import { applyVariables, botVariables, defaultBotConfig, getTemplate } from "@/shared/bot-config";
 import { chunkText, parseFaq, serializeFaq, faqToChunks, htmlToText } from "@/server/ai/text";
 import { parseWebhook, buildTextUpsertPayload } from "@/server/evolution/webhook-parser";
+import { toModelMessages } from "@/server/engine/inbound";
+import { cacheImage } from "@/server/engine/media-cache";
+import type { MessageRow } from "@/server/tenant/store";
 
 describe("reply: bolhas de WhatsApp", () => {
   it("converte markdown e divide por parágrafos", () => {
@@ -179,5 +182,61 @@ describe("crypto", () => {
     expect(enc.startsWith("v1.")).toBe(true);
     expect(decryptSecret(enc)).toBe("sk-abc123");
     expect(maskSecret("sk-abcdefghijklmnop", 4)).toMatch(/^sk-a•+mnop$/);
+  });
+});
+
+describe("engine: imagem (visão)", () => {
+  function row(patch: Partial<MessageRow>): MessageRow {
+    return {
+      id: "m-" + Math.random(),
+      number_id: "num-1",
+      conversation_id: "conv-1",
+      contact_id: "contact-1",
+      external_id: null,
+      direction: "in",
+      sender: "contact",
+      type: "text",
+      text: null,
+      transcript: null,
+      media_mime: null,
+      status: "received",
+      model: null,
+      tokens_in: null,
+      tokens_out: null,
+      latency_ms: null,
+      meta: null,
+      created_at: new Date(),
+      ...patch,
+    };
+  }
+
+  it("mensagens de texto consecutivas continuam mescladas numa mensagem só", () => {
+    const messages = toModelMessages([row({ text: "Oi" }), row({ text: "Tudo bem?" })], "num-1");
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ role: "user", content: "Oi\nTudo bem?" });
+  });
+
+  it("imagem com bytes em cache vira conteúdo multimodal (arquivo + legenda)", () => {
+    cacheImage("num-1", "wa-img-1", "QkFTRTY0", "image/jpeg");
+    const messages = toModelMessages([row({ type: "image", external_id: "wa-img-1", text: "Isso já saiu do forno assim mesmo?" })], "num-1");
+    expect(messages).toHaveLength(1);
+    expect(messages[0].role).toBe("user");
+    expect(messages[0].content).toEqual([
+      { type: "file", data: "QkFTRTY0", mediaType: "image/jpeg" },
+      { type: "text", text: "Isso já saiu do forno assim mesmo?" },
+    ]);
+  });
+
+  it("imagem sem nada em cache (expirado/nunca baixado) volta a ser só o resumo em texto", () => {
+    const messages = toModelMessages([row({ type: "image", external_id: "wa-img-nao-cacheado", text: "legenda" })], "num-1");
+    expect(messages).toHaveLength(1);
+    expect(messages[0].content).toBe('[o cliente enviou uma imagem: "legenda"]');
+  });
+
+  it("cache é de uso único: a mesma imagem não é reaproveitada numa segunda leitura do histórico", () => {
+    cacheImage("num-1", "wa-img-2", "QUJD", "image/png");
+    toModelMessages([row({ type: "image", external_id: "wa-img-2", text: "" })], "num-1");
+    const second = toModelMessages([row({ type: "image", external_id: "wa-img-2", text: "" })], "num-1");
+    expect(second[0].content).toBe("[o cliente enviou uma imagem]");
   });
 });
