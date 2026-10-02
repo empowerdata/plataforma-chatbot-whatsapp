@@ -32,6 +32,7 @@ npx drizzle-kit generate   # gerar migration após mudar src/server/db/schema.ts
 
 ## Documentação
 
+- `docs/visao-geral-produto.md` — o que o produto é e faz, para quem, limites e próximos passos (descritivo, sem marketing).
 - `docs/visao-e-decisoes.md` — **leia primeiro**: modelo de negócio, o histórico de decisões e o porquê, restrições que não devem ser violadas.
 - `docs/arquitetura.md` — peças técnicas, fluxo da mensagem.
 - `docs/convencoes.md` — como escrever telas e código aqui.
